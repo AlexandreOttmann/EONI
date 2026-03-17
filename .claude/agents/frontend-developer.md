@@ -108,10 +108,11 @@ export default defineAppConfig({
 `motion-v` is the spring physics / micro-interaction layer. With `motion-v/nuxt` in `nuxt.config.ts`, all components and composables are **auto-imported** — no explicit import in `.vue` files.
 
 ```vue
-<!-- Components auto-imported: <motion.div>, <motion.button>, <AnimatePresence> -->
+<!-- Components auto-imported: <motion>, <motion>, <AnimatePresence> -->
 <!-- Composables auto-imported: useScroll, useSpring, useMotionValue, useTransform, useReducedMotion -->
 
-<motion.div
+<motion
+  as="div"
   :initial="{ opacity: 0, y: 8 }"
   :animate="{ opacity: 1, y: 0 }"
   :transition="{ duration: 0.2, ease: 'easeOut' }"
