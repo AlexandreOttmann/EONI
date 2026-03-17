@@ -12,7 +12,7 @@ Last updated: 2026-03-17
 
 ```
 Phase 1  — MVP Core            🔄 IN PROGRESS
-Phase 1a — Marketing Surface   ⬜ NOT STARTED
+Phase 1a — Marketing Surface   ✅ COMPLETE
 Phase 2  — AI Visibility       ⬜ NOT STARTED
 Phase 3  — Automation + Scale  ⬜ NOT STARTED
 ```
@@ -28,8 +28,8 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Supabase schema (merchants, pages, chunks, conversations, messages, crawl_jobs) | main | ✅ | backend |
 | RLS policies (merchant_id isolation on all tables) | main | ✅ pending security review | backend -> security |
 | Auth flow (email + Google OAuth via Supabase) | main | ✅ server routes done | backend -> frontend |
-| Dashboard layout (sidebar, header, auth guard) | — | ⬜ | ui-ux -> frontend |
-| Design system tokens (Tailwind v4 @theme, Nuxt UI app.config) | — | ⬜ | ui-ux |
+| Dashboard layout (sidebar, header, auth guard) | main | ✅ spec done | ui-ux -> frontend |
+| Design system tokens (Tailwind v4 @theme, Nuxt UI app.config) | main | ✅ spec done | ui-ux |
 
 ### 1.2 Crawl Pipeline
 
@@ -77,11 +77,14 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 | Task | Branch | Status | Agent |
 |------|--------|--------|-------|
-| Marketing layout (Lenis, GSAP, CustomCursor, NoiseOverlay) | — | ⬜ | ui-ux -> frontend |
-| Hero section (word reveal, gradient, parallax) | — | ⬜ | ui-ux -> frontend |
-| Feature bento grid (stagger entrance) | — | ⬜ | ui-ux -> frontend |
-| Pricing section | — | ⬜ | ui-ux -> frontend |
-| Navigation (glass blur, scroll-triggered border) | — | ⬜ | ui-ux -> frontend |
+| Marketing layout (Lenis, GSAP, CustomCursor, NoiseOverlay) | main | ✅ | ui-ux -> frontend |
+| Hero section (word reveal, gradient, parallax) | main | ✅ | ui-ux -> frontend |
+| Feature bento grid (stagger entrance) | main | ✅ | ui-ux -> frontend |
+| Pricing section | main | ✅ | ui-ux -> frontend |
+| Navigation (glass blur, scroll-triggered border) | main | ✅ | ui-ux -> frontend |
+| LogoCloud, HowItWorks, ProductShowcase sections | main | ✅ | frontend |
+| Testimonials, CTA, Footer sections | main | ✅ | frontend |
+| Homepage page (index.vue with marketing layout) | main | ✅ | frontend |
 
 ---
 
@@ -108,7 +111,34 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 ## Current Focus
 
-Phase 1.1 Foundation backend complete. Security review and frontend implementation next.
+Phase 1a Marketing Surface complete. Phase 1.1 Foundation frontend (auth UI + dashboard shell) next.
+
+### What exists (Phase 1a — Marketing Surface)
+
+- `nuxt-app/plugins/gsap.client.ts` — GSAP + ScrollTrigger registration
+- `nuxt-app/plugins/lenis.client.ts` — Lenis smooth scroll + GSAP ticker
+- `nuxt-app/app/composables/useGsap.ts` — GSAP accessor with cleanup
+- `nuxt-app/app/composables/useLenis.ts` — route-aware Lenis start/stop
+- `nuxt-app/app/composables/useTextReveal.ts` — GSAP word-by-word heading reveal
+- `nuxt-app/app/composables/useReveal.ts` — GSAP fade-up section reveal
+- `nuxt-app/app/layouts/marketing.vue` — Marketing layout (Lenis, CustomCursor, NoiseOverlay, AnimatePresence)
+- `nuxt-app/app/layouts/default.vue` — Default layout (starter template preserved)
+- `nuxt-app/app/components/marketing/NoiseOverlay.vue` — SVG fractal noise overlay
+- `nuxt-app/app/components/marketing/CustomCursor.vue` — Spring-following cursor dot
+- `nuxt-app/app/components/marketing/MagneticButton.vue` — Magnetic CTA with spring physics
+- `nuxt-app/app/components/marketing/MarketingNav.vue` — Fixed glass nav with GSAP scroll border
+- `nuxt-app/app/components/marketing/HeroSection.vue` — Hero with text reveal + parallax mockup
+- `nuxt-app/app/components/marketing/LogoCloud.vue` — Infinite-scroll logo cloud
+- `nuxt-app/app/components/marketing/HowItWorks.vue` — 3-step flow with animated connector
+- `nuxt-app/app/components/marketing/FeatureBento.vue` — Asymmetric bento grid with mouse-follow glow
+- `nuxt-app/app/components/marketing/ProductShowcase.vue` — Pinned horizontal scroll showcase
+- `nuxt-app/app/components/marketing/Testimonials.vue` — Glass blockquote cards
+- `nuxt-app/app/components/marketing/PricingSection.vue` — 3-tier pricing with billing toggle
+- `nuxt-app/app/components/marketing/CTASection.vue` — Final conversion CTA
+- `nuxt-app/app/components/marketing/MarketingFooter.vue` — 4-column footer
+- `nuxt-app/app/pages/index.vue` — Homepage composing all sections
+- `nuxt-app/app/app.vue` — Restructured to UApp > NuxtLayout > NuxtPage
+- `nuxt-app/app/assets/css/main.css` — Added scrollbar-hide, logo-scroll, reduced-motion queries
 
 ### What exists (Phase 1.1 backend)
 
@@ -128,8 +158,8 @@ Phase 1.1 Foundation backend complete. Security review and frontend implementati
 ## Up Next
 
 1. **security-auditor** -> Review RLS policies in `0002_rls_policies.sql`
-2. **ui-ux-designer** -> Design dashboard layout + design system tokens
-3. **frontend-developer** -> Implement auth UI + dashboard shell (consume `types/api.ts` + auth routes)
+2. ~~**ui-ux-designer** -> Design dashboard layout + design system tokens~~ ✅ done — see `.claude/design-specs/dashboard-layout.md`
+3. **frontend-developer** -> Implement auth UI + dashboard shell using `.claude/design-specs/dashboard-layout.md`
 
 ---
 

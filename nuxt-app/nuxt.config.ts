@@ -16,11 +16,19 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
-  routeRules: {
-    '/': { prerender: true }
-  },
-
   compatibilityDate: '2025-01-15',
+  vite: {
+    optimizeDeps: {
+      include: [
+        '@vue/devtools-core',
+        '@vue/devtools-kit',
+        'dayjs', // CJS
+        'dayjs/plugin/updateLocale', // CJS
+        'dayjs/plugin/relativeTime', // CJS
+        'dayjs/plugin/utc' // CJS
+      ]
+    }
+  },
   claudeDevtools: {
     enabled: true,
     claude: {
@@ -39,5 +47,4 @@ export default defineNuxtConfig({
   },
   supabase: {
     redirect: false
-  }
-})
+  } })
