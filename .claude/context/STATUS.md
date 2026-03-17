@@ -28,8 +28,9 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Supabase schema (merchants, pages, chunks, conversations, messages, crawl_jobs) | main | ✅ | backend |
 | RLS policies (merchant_id isolation on all tables) | main | ✅ pending security review | backend -> security |
 | Auth flow (email + Google OAuth via Supabase) | main | ✅ server routes done | backend -> frontend |
-| Dashboard layout (sidebar, header, auth guard) | main | ✅ spec done | ui-ux -> frontend |
+| Dashboard layout (sidebar, header, auth guard) | main | ✅ implemented | ui-ux -> frontend |
 | Design system tokens (Tailwind v4 @theme, Nuxt UI app.config) | main | ✅ spec done | ui-ux |
+| Auth UI (login, signup, auth layout) | main | ✅ implemented | frontend |
 
 ### 1.2 Crawl Pipeline
 
@@ -59,7 +60,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Widget Vite build setup (standalone, <=30kb) | — | ⬜ | frontend |
 | Shadow DOM container | — | ⬜ | frontend |
 | SSE chat in widget | — | ⬜ | frontend |
-| Widget config dashboard page (color, message, position) | — | ⬜ | ui-ux -> frontend |
+| Widget config dashboard page (color, message, position) | main | ✅ UI shell (mock data) | frontend |
 | Widget `<script>` tag generation | — | ⬜ | backend |
 | GDPR cookie consent in widget | — | ⬜ | security |
 
@@ -67,9 +68,9 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 | Task | Branch | Status | Agent |
 |------|--------|--------|-------|
-| Onboarding flow (URL input -> crawl -> go live) | — | ⬜ | ui-ux -> frontend |
-| Analytics page (conversations, top questions, no-answer rate) | — | ⬜ | ui-ux -> frontend |
-| Settings page (merchant profile, API keys) | — | ⬜ | ui-ux -> frontend |
+| Onboarding flow (URL input -> crawl -> go live) | main | ✅ UI shell (mock data) | frontend |
+| Analytics page (conversations, top questions, no-answer rate) | main | ✅ UI shell (mock data) | frontend |
+| Settings page (merchant profile, API keys) | main | ✅ UI shell (mock data) | frontend |
 
 ---
 
@@ -111,7 +112,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 ## Current Focus
 
-Phase 1a Marketing Surface complete. Phase 1.1 Foundation frontend (auth UI + dashboard shell) next.
+Phase 1a Marketing Surface complete. Phase 1.1 Foundation frontend (auth UI + dashboard shell) complete. Backend crawl/chat endpoints next.
 
 ### What exists (Phase 1a — Marketing Surface)
 
@@ -140,6 +141,23 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation frontend (auth UI + da
 - `nuxt-app/app/app.vue` — Restructured to UApp > NuxtLayout > NuxtPage
 - `nuxt-app/app/assets/css/main.css` — Added scrollbar-hide, logo-scroll, reduced-motion queries
 
+### What exists (Phase 1.1 frontend — dashboard + auth)
+
+- `nuxt-app/app/composables/useSidebar.ts` — mobile sidebar open/close state (shared ref)
+- `nuxt-app/app/composables/useCountUp.ts` — animated number count-up with reduced-motion fallback
+- `nuxt-app/app/layouts/dashboard.vue` — sidebar + header + slot with page transition (AnimatePresence)
+- `nuxt-app/app/layouts/auth.vue` — centered card with noise overlay + violet/cyan dual glow
+- `nuxt-app/app/components/dashboard/Sidebar.vue` — fixed sidebar with staggered nav, active indicator pill, glass merchant footer
+- `nuxt-app/app/components/dashboard/Header.vue` — sticky glass header with page title, New Crawl CTA, color mode toggle
+- `nuxt-app/app/components/dashboard/CrawlProgressCard.vue` — glass progress card with animated spinner + spring progress bar
+- `nuxt-app/app/pages/dashboard/index.vue` — Overview with stat cards (count-up, sparklines, mouse-follow glow), recent tables, empty state
+- `nuxt-app/app/pages/dashboard/crawl.vue` — URL input, active crawl card, crawl history table
+- `nuxt-app/app/pages/dashboard/widget.vue` — widget config form, live preview mockup, install snippet with copy
+- `nuxt-app/app/pages/dashboard/analytics.vue` — stat cards, top questions table, unanswered questions table
+- `nuxt-app/app/pages/dashboard/settings.vue` — profile form, account section, danger zone with delete confirmation modal
+- `nuxt-app/app/pages/auth/login.vue` — email/password form, Google OAuth, show/hide password
+- `nuxt-app/app/pages/auth/signup.vue` — registration form with business name, email, password, optional domain
+
 ### What exists (Phase 1.1 backend)
 
 - `nuxt-app/supabase/migrations/0001_initial_schema.sql` — all 7 tables + indexes + updated_at trigger
@@ -159,7 +177,10 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation frontend (auth UI + da
 
 1. **security-auditor** -> Review RLS policies in `0002_rls_policies.sql`
 2. ~~**ui-ux-designer** -> Design dashboard layout + design system tokens~~ ✅ done — see `.claude/design-specs/dashboard-layout.md`
-3. **frontend-developer** -> Implement auth UI + dashboard shell using `.claude/design-specs/dashboard-layout.md`
+3. ~~**frontend-developer** -> Implement auth UI + dashboard shell~~ ✅ done — all 14 files built, build passes
+4. **backend-developer** -> POST /api/crawl/start + crawl status endpoints (Phase 1.2)
+5. **backend-developer** -> POST /api/chat/stream SSE endpoint (Phase 1.3)
+6. **frontend-developer** -> Wire dashboard pages to real API endpoints once backend is ready
 
 ---
 

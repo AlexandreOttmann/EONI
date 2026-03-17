@@ -6,9 +6,18 @@
 
 ---
 
+## Changelog
+
+| Date | Change |
+|------|--------|
+| 2026-03-17 | **v2 — Post-marketing cohesion pass.** Aligned with Phase 1a marketing surface. Added: glass utility usage for sidebar/header, `glow-violet` hover on stat cards, number count-up animation, enhanced empty states with violet/cyan accents, improved CrawlProgressCard with glass effect, auth page noise overlay + dual-glow background, skeleton shimmer patterns, gradient-border stat card hover, sparkline trend indicator spec, merchant footer glass treatment. Clarified CSS utility references from `main.css`. |
+| 2026-03-10 | v1 — Initial dashboard layout spec. |
+
+---
+
 ## 1. Design System Tokens
 
-### Color Palette (already in `assets/css/main.css` — do not change)
+### Color Palette (defined in `assets/css/main.css` — do not duplicate)
 
 ```
 Surface layers (dark):
@@ -17,7 +26,7 @@ Surface layers (dark):
   surface-2      #13131a   — cards, panels
   surface-3      #1c1c26   — hover states, input fill
 
-Accents (violet/cyan duotone):
+Accents (violet/cyan duotone — shared with marketing):
   accent-violet   #7c3aed
   accent-violet-2 #a78bfa
   accent-cyan     #06b6d4
@@ -37,20 +46,29 @@ Semantic:
   error    #ef4444
 ```
 
-### `app.config.ts` Update Required
+### CSS Utilities from `main.css` (use in dashboard where noted)
+
+```
+.glass           — rgba(12,12,16,0.6) + blur(16px) + subtle white border
+.glow-violet     — violet box-shadow halo (stat cards on hover, active states)
+.glow-cyan       — cyan box-shadow halo (accent variant)
+.gradient-text-violet-cyan — gradient text fill (page titles, key metrics)
+```
+
+**Usage rules for dashboard**: these utilities are available but must be used with restraint. The dashboard is a tool, not a marketing page. Reserve `.glow-violet` for hover states and active indicators. Reserve `.gradient-text-violet-cyan` for the main page title or a single hero metric, never for every heading. Use `.glass` for the sidebar merchant footer and header backdrop.
+
+### `app.config.ts` (no changes needed — already configured)
 
 ```ts
 export default defineAppConfig({
   ui: {
     colors: {
-      primary: 'violet',   // already set
-      neutral: 'zinc',     // already set
+      primary: 'violet',
+      neutral: 'zinc',
     },
   },
 })
 ```
-
-> ⚠️ `app.config.ts` is a critical file — follow `.claude-devtools/settings.json` autoConfirm check before modifying.
 
 ### Typography Scale
 
@@ -82,7 +100,7 @@ Heading sizes (always clamp + text-wrap: balance):
 ┌─────────────────────────────────────────────────────────────────┐
 │  [DashboardSidebar — fixed left, w-60, surface-1]               │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │  [DashboardHeader — sticky top-0, h-14, surface-1/glass]  │ │
+│  │  [DashboardHeader — sticky top-0, h-14, glass]            │ │
 │  │────────────────────────────────────────────────────────────│ │
 │  │                                                            │ │
 │  │  <slot /> — scrollable, bg-surface-base, p-6              │ │
@@ -104,11 +122,33 @@ Heading sizes (always clamp + text-wrap: balance):
 </div>
 ```
 
+### Page Transition
+
+Wrap the slot with a subtle Motion/Vue crossfade on route change:
+
+```vue
+<AnimatePresence mode="wait">
+  <motion.main
+    :key="route.path"
+    id="main-content"
+    class="flex-1 p-6 overflow-y-auto"
+    :initial="{ opacity: 0 }"
+    :animate="{ opacity: 1 }"
+    :exit="{ opacity: 0 }"
+    :transition="{ duration: 0.15 }"
+  >
+    <slot />
+  </motion.main>
+</AnimatePresence>
+```
+
+This is intentionally faster than marketing transitions (0.15s vs 0.4s). Dashboard users navigate frequently and should never feel slowed down.
+
 ### Responsive
 
 - `sm` (< 768px): sidebar hidden by default, opens as drawer overlay via `useSidebar()` composable
-- `md` (768–1023px): sidebar collapses to icon-only mode (`w-16`)
-- `lg+` (≥ 1024px): full sidebar visible (`w-60`)
+- `md` (768-1023px): sidebar collapses to icon-only mode (`w-16`)
+- `lg+` (>= 1024px): full sidebar visible (`w-60`)
 
 ### Accessibility
 
@@ -130,18 +170,17 @@ Heading sizes (always clamp + text-wrap: balance):
 │  [Logo — top, p-4]  │
 │  ─────────────────  │
 │  [Nav group]        │
-│    • Overview       │
-│    • Crawl          │
-│    • Chat Preview   │
-│    • Widget         │
-│    • Analytics      │
-│    • Settings       │
+│    * Overview       │
+│    * Crawl          │
+│    * Chat Preview   │
+│    * Widget         │
+│    * Analytics      │
+│    * Settings       │
 │  ─────────────────  │
-│  [Merchant info     │
-│   bottom, p-4]      │
+│  [Merchant footer   │
+│   glass treatment]  │
 │    avatar + name    │
-│    subscription     │
-│    badge            │
+│    plan badge       │
 └─────────────────────┘
 ```
 
@@ -156,7 +195,7 @@ bg-surface-1 border-r border-border-base
 h-14 flex items-center px-4 border-b border-border-base
 ```
 
-Logo mark: `w-7 h-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan`
+Logo mark: `w-7 h-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan` — matches the marketing nav logo exactly.
 Logo text: `ml-2 text-sm font-display font-semibold text-text-base`
 
 **Nav section label**:
@@ -164,22 +203,24 @@ Logo text: `ml-2 text-sm font-display font-semibold text-text-base`
 px-3 mb-1 text-xs font-mono uppercase tracking-[0.12em] text-text-subtle
 ```
 
-**Nav item** (active state):
-```
+**Nav item** (base + states):
+```css
 /* base */
-group flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm
+group relative flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm
 text-text-muted transition-colors duration-150
 hover:bg-surface-3 hover:text-text-base touch-action-manipulation
 
 /* active */
-bg-surface-3 text-text-base
+bg-accent-violet/8 text-text-base
 
-/* active indicator */
+/* active indicator — left edge pill */
 ::before content-[''] absolute left-0 top-1/2 -translate-y-1/2
-w-0.5 h-4 rounded-r bg-accent-violet
+w-0.5 h-4 rounded-r bg-gradient-to-b from-accent-violet to-accent-cyan
 ```
 
-**Nav item icon**: `w-4 h-4 shrink-0` — use Heroicons (auto-imported via Nuxt UI)
+The active state uses `bg-accent-violet/8` (violet tint at 8% opacity) instead of the generic `bg-surface-3`, creating a subtle but unmistakable connection to the brand accent. The left indicator uses the violet-to-cyan gradient, matching the marketing site's duotone language.
+
+**Nav item icon**: `w-4 h-4 shrink-0` — active icon color: `text-accent-violet`
 
 **Focus state** (all nav items):
 ```
@@ -187,12 +228,15 @@ focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-
 focus-visible:ring-offset-surface-1 focus-visible:outline-none
 ```
 
-**Merchant footer**:
+**Merchant footer** (glass treatment):
 ```
-mt-auto p-4 border-t border-border-base
+mt-auto mx-2 mb-2 p-3 rounded-xl glass
 ```
+
+Using the `.glass` utility here creates a subtle elevated card at the bottom of the sidebar, visually separating the merchant info from the navigation. This mirrors the glass morphism used in the marketing nav.
+
 Avatar: `UAvatar` size="sm"
-Name: `text-sm font-medium text-text-base truncate`
+Name: `text-sm font-medium text-text-base truncate min-w-0`
 Plan badge: `UBadge` color="violet" variant="subtle" size="xs"
 
 ### Nav Items
@@ -211,7 +255,7 @@ const navItems = [
 ### Entrance Animation
 
 ```ts
-// sidebar itself: instant — no animation (it's structural chrome)
+// sidebar itself: instant — no animation (structural chrome)
 // nav items: subtle stagger on mount
 :variants="{
   hidden: { opacity: 0 },
@@ -244,6 +288,7 @@ Active link indicator slide:
 :transition="{ type: 'spring', stiffness: 300, damping: 30 }"
 ```
 Backdrop: `fixed inset-0 z-20 bg-black/50 backdrop-blur-sm`
+Drawer root: add `overscroll-behavior: contain` to prevent scroll bleed.
 
 ### Reduced Motion Fallback
 
@@ -255,7 +300,7 @@ No position/transform animations. Active indicator appears instantly. Stagger re
 - Active link: `aria-current="page"`
 - Mobile toggle button: `aria-expanded`, `aria-controls="sidebar"`
 - `id="sidebar"` on the sidebar nav element
-- All items keyboard-navigable, tab order: logo → nav items → merchant footer
+- All items keyboard-navigable, tab order: logo -> nav items -> merchant footer
 
 ---
 
@@ -277,12 +322,13 @@ No position/transform animations. Active indicator appears instantly. Stagger re
 └────────────────────────────────────────────────────────────┘
 ```
 
-**Root**:
+**Root** — uses `.glass` utility for consistency with marketing nav:
 ```
 sticky top-0 z-20 h-14 flex items-center justify-between
-px-6 border-b border-border-base
-bg-surface-1/80 backdrop-blur-xl
+px-6 border-b border-border-base glass
 ```
+
+This replaces the previous `bg-surface-1/80 backdrop-blur-xl` with the shared `.glass` utility, ensuring the header's frosted effect matches the marketing navigation bar. The user experiences the same glass language across the entire product.
 
 **Page title**: injected via `useHead()` or slot from each page — `text-sm font-medium text-text-base`
 
@@ -324,6 +370,7 @@ color="violet" variant="solid" size="sm"
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐  │
 │  │ Pages    │ │ Chunks   │ │Convers.  │ │ Status │  │
 │  │ crawled  │ │ indexed  │ │ this wk  │ │ badge  │  │
+│  │ [spark]  │ │ [spark]  │ │ [spark]  │ │        │  │
 │  └──────────┘ └──────────┘ └──────────┘ └────────┘  │
 │                                                      │
 │  ┌──────────────────────────┐ ┌────────────────────┐ │
@@ -336,22 +383,129 @@ color="violet" variant="solid" size="sm"
 ### Stat Cards (4-column grid)
 
 ```html
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-  <UCard v-for="stat in stats" ...>
-    <div class="flex items-center justify-between">
-      <span class="text-xs font-mono uppercase tracking-[0.12em] text-text-muted">
-        {{ stat.label }}
-      </span>
-      <UIcon :name="stat.icon" class="w-4 h-4 text-text-subtle" />
-    </div>
-    <p class="mt-2 text-2xl font-display font-semibold tabular-nums text-text-base">
-      {{ stat.value }}
-    </p>
-    <p v-if="stat.delta" class="mt-0.5 text-xs text-text-muted">
-      {{ stat.delta }}
-    </p>
-  </UCard>
-</div>
+<motion.div
+  class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"
+  :variants="{
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.06 } }
+  }"
+  initial="hidden"
+  animate="visible"
+>
+  <motion.div
+    v-for="stat in stats"
+    :key="stat.label"
+    :variants="{
+      hidden: { opacity: 0, y: 8 },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } }
+    }"
+  >
+    <UCard
+      class="group relative overflow-hidden transition-shadow duration-300 hover:glow-violet"
+    >
+      <!-- Hover glow — mouse-follow radial, same pattern as marketing bento cards -->
+      <div
+        class="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style="background: radial-gradient(400px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(124,58,237,0.06), transparent 40%)"
+        aria-hidden="true"
+      />
+
+      <div class="relative z-10">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-mono uppercase tracking-[0.12em] text-text-muted">
+            {{ stat.label }}
+          </span>
+          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-violet/10">
+            <UIcon :name="stat.icon" class="w-3.5 h-3.5 text-accent-violet" />
+          </div>
+        </div>
+
+        <!-- Animated count-up value -->
+        <p
+          class="text-2xl font-display font-semibold tabular-nums text-text-base"
+          :aria-label="`${stat.label}: ${stat.value}`"
+        >
+          {{ animatedValue }}
+        </p>
+
+        <!-- Delta + sparkline row -->
+        <div class="mt-2 flex items-center justify-between">
+          <span
+            v-if="stat.delta"
+            class="inline-flex items-center gap-1 text-xs font-mono tabular-nums"
+            :class="stat.deltaPositive ? 'text-success' : 'text-error'"
+          >
+            <UIcon
+              :name="stat.deltaPositive ? 'i-heroicons-arrow-trending-up' : 'i-heroicons-arrow-trending-down'"
+              class="w-3 h-3"
+            />
+            {{ stat.delta }}
+          </span>
+          <!-- Mini sparkline (inline SVG, 48x16) -->
+          <svg
+            v-if="stat.sparkline"
+            class="w-12 h-4 text-accent-violet/40"
+            viewBox="0 0 48 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <polyline
+              :points="stat.sparkline"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+      </div>
+    </UCard>
+  </motion.div>
+</motion.div>
+```
+
+**Mouse-follow glow handler** (same pattern as marketing `FeatureBento.vue`):
+```ts
+function onMouseMove(event: MouseEvent, cardEl: EventTarget | null) {
+  const el = cardEl as HTMLElement | null
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  el.style.setProperty('--mouse-x', `${event.clientX - rect.left}px`)
+  el.style.setProperty('--mouse-y', `${event.clientY - rect.top}px`)
+}
+```
+
+Add `@mousemove="onMouseMove($event, $event.currentTarget)"` to each stat card wrapper.
+
+**Number count-up animation** (composable):
+
+```ts
+// app/composables/useCountUp.ts
+export function useCountUp(target: Ref<number>, duration = 600) {
+  const display = ref(0)
+
+  watch(target, (newVal) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      display.value = newVal
+      return
+    }
+    const start = display.value
+    const diff = newVal - start
+    const startTime = performance.now()
+
+    function tick(now: number) {
+      const elapsed = now - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      display.value = Math.round(start + diff * eased)
+      if (progress < 1) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, { immediate: true })
+
+  return display
+}
 ```
 
 **UCard theme override** (via `app.config.ts` `ui.card`):
@@ -362,22 +516,17 @@ card: {
 }
 ```
 
-### Entrance Animation (stat cards)
+### Stat Data Shape
 
 ```ts
-// parent
-:variants="{
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.06 } }
-}"
-initial="hidden"
-animate="visible"
-
-// each card
-:variants="{
-  hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } }
-}"
+interface StatCard {
+  label: string
+  value: number
+  icon: string
+  delta: string | null        // e.g., "+12%" or "-3%"
+  deltaPositive: boolean
+  sparkline: string | null    // SVG polyline points, e.g., "0,12 8,10 16,14 24,6 32,8 40,4 48,2"
+}
 ```
 
 ### Recent Activity Tables
@@ -405,24 +554,71 @@ Two-column grid on `lg+`, stacked on `sm/md`:
 ```html
 <!-- When no crawl jobs exist -->
 <div class="flex flex-col items-center justify-center py-16 text-center">
-  <div class="w-12 h-12 rounded-full bg-surface-3 flex items-center justify-center mb-4">
-    <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 text-text-muted" />
+  <!-- Icon container with violet glow ring -->
+  <div class="relative mb-6">
+    <div
+      class="absolute inset-0 rounded-full blur-xl opacity-30"
+      style="background: radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%)"
+      aria-hidden="true"
+    />
+    <div class="relative w-14 h-14 rounded-full bg-accent-violet/10 border border-accent-violet/20 flex items-center justify-center">
+      <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 text-accent-violet" />
+    </div>
   </div>
-  <h3 class="text-sm font-medium text-text-base mb-1">No crawls yet</h3>
-  <p class="text-sm text-text-muted mb-4 max-w-xs">
+
+  <h3 class="text-base font-display font-medium text-text-base mb-1">No crawls yet</h3>
+  <p class="text-sm text-text-muted mb-6 max-w-xs">
     Add your store URL to start indexing your products for AI search.
   </p>
-  <UButton label="Start your first crawl" to="/dashboard/crawl" color="violet" />
+  <UButton label="Start your first crawl" to="/dashboard/crawl" color="violet" size="md" />
 </div>
+```
+
+The empty state uses the violet glow halo behind the icon — the same radial gradient language used throughout the marketing surface — to make these states feel intentional rather than like error screens.
+
+### Skeleton Loading State
+
+Before data loads, show shimmer placeholders:
+
+```vue
+<!-- Stat card skeleton -->
+<UCard>
+  <div class="space-y-3">
+    <div class="flex items-center justify-between">
+      <motion.div
+        class="h-3 w-16 rounded bg-surface-3"
+        :animate="{ opacity: [0.4, 1, 0.4] }"
+        :transition="{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }"
+      />
+      <motion.div
+        class="h-7 w-7 rounded-lg bg-surface-3"
+        :animate="{ opacity: [0.4, 1, 0.4] }"
+        :transition="{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.1 }"
+      />
+    </div>
+    <motion.div
+      class="h-7 w-20 rounded bg-surface-3"
+      :animate="{ opacity: [0.4, 1, 0.4] }"
+      :transition="{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.2 }"
+    />
+    <motion.div
+      class="h-3 w-12 rounded bg-surface-3"
+      :animate="{ opacity: [0.4, 1, 0.4] }"
+      :transition="{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.3 }"
+    />
+  </div>
+</UCard>
 ```
 
 ### Reduced Motion Fallback
 
-All `y` animations set to `y: 0`, only `opacity` animates.
+All `y` animations set to `y: 0`, only `opacity` animates. Count-up jumps to final value instantly. Shimmer uses static `opacity: 0.5` instead of pulsing.
 
 ### Accessibility
 
 - Stat values: `aria-label="Pages crawled: 1,204"` (full label, not just number)
+- Delta arrows: `aria-hidden="true"` (the text carries the meaning)
+- Sparklines: `aria-hidden="true"` (decorative)
 - Tables: `<UTable>` renders semantic `<table>` — no extra work needed
 - Empty state CTA: standard `<a>` via `to=` prop
 
@@ -449,7 +645,7 @@ All `y` animations set to `y: 0`, only `opacity` animates.
 │                                                      │
 │  ┌──────────────────────────────────────────────┐    │
 │  │  Active Crawl Job (visible when running)     │    │
-│  │  CrawlProgressCard                           │    │
+│  │  CrawlProgressCard — glass treatment         │    │
 │  └──────────────────────────────────────────────┘    │
 │                                                      │
 │  ┌──────────────────────────────────────────────┐    │
@@ -463,29 +659,50 @@ All `y` animations set to `y: 0`, only `opacity` animates.
 **File**: `app/components/dashboard/CrawlProgressCard.vue`
 
 ```html
-<UCard>
+<UCard class="glass relative overflow-hidden">
+  <!-- Top-edge glow when running -->
+  <div
+    v-if="job.status === 'running'"
+    class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-violet to-transparent"
+    aria-hidden="true"
+  />
+
   <div class="flex items-center justify-between mb-3">
-    <div class="flex items-center gap-2">
-      <!-- animated spinner only when running -->
+    <div class="flex items-center gap-2 min-w-0">
+      <!-- Animated spinner only when running -->
       <motion.div
         v-if="job.status === 'running'"
         :animate="{ rotate: 360 }"
         :transition="{ repeat: Infinity, duration: 1, ease: 'linear' }"
+        class="shrink-0"
       >
         <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 text-accent-violet" />
       </motion.div>
-      <UIcon v-else name="i-heroicons-check-circle" class="w-4 h-4 text-success" />
+      <UIcon v-else-if="job.status === 'completed'" name="i-heroicons-check-circle" class="w-4 h-4 text-success shrink-0" />
+      <UIcon v-else-if="job.status === 'failed'" name="i-heroicons-x-circle" class="w-4 h-4 text-error shrink-0" />
+      <UIcon v-else name="i-heroicons-clock" class="w-4 h-4 text-text-subtle shrink-0" />
       <span class="text-sm font-medium text-text-base truncate min-w-0">
         {{ job.url }}
       </span>
     </div>
-    <UBadge :color="statusColor(job.status)" variant="subtle" size="xs">
+    <UBadge
+      :color="statusColor(job.status)"
+      variant="subtle"
+      size="xs"
+      class="shrink-0 ml-2"
+    >
       {{ job.status }}
     </UBadge>
   </div>
 
-  <!-- progress bar -->
-  <div class="h-1.5 bg-surface-3 rounded-full overflow-hidden">
+  <!-- Progress bar -->
+  <div
+    class="h-1.5 bg-surface-3 rounded-full overflow-hidden"
+    role="progressbar"
+    :aria-valuenow="progressPct"
+    aria-valuemin="0"
+    aria-valuemax="100"
+  >
     <motion.div
       class="h-full bg-gradient-to-r from-accent-violet to-accent-cyan rounded-full"
       :animate="{ width: `${progressPct}%` }"
@@ -493,13 +710,16 @@ All `y` animations set to `y: 0`, only `opacity` animates.
     />
   </div>
 
-  <!-- stats row -->
+  <!-- Stats row -->
   <div class="mt-3 flex gap-4 text-xs font-mono tabular-nums text-text-muted">
-    <span>{{ job.pages_crawled }} / {{ job.pages_found }} pages</span>
+    <span>{{ job.pages_crawled }}&nbsp;/&nbsp;{{ job.pages_found }} pages</span>
     <span>{{ job.chunks_created }} chunks</span>
+    <span v-if="job.elapsed_time" class="ml-auto">{{ job.elapsed_time }}</span>
   </div>
 </UCard>
 ```
+
+The card uses `.glass` for the semi-transparent frosted background, and adds a thin gradient line along the top edge when a crawl is running. This creates a subtle "active" visual without being distracting. The gradient uses the same `from-accent-violet to-accent-cyan` direction as the progress bar, creating a cohesive look.
 
 **statusColor mapping**:
 ```ts
@@ -515,24 +735,25 @@ const statusColor = (s: string) => ({
 
 ```ts
 const columns = [
-  { key: 'url',          label: 'URL',       class: 'max-w-xs truncate' },
-  { key: 'status',       label: 'Status' },
-  { key: 'pages_crawled',label: 'Pages',     class: 'tabular-nums' },
-  { key: 'chunks_created',label: 'Chunks',   class: 'tabular-nums' },
-  { key: 'started_at',   label: 'Started' },
-  { key: 'actions',      label: '' },
+  { key: 'url',           label: 'URL',       class: 'max-w-xs truncate' },
+  { key: 'status',        label: 'Status' },
+  { key: 'pages_crawled', label: 'Pages',     class: 'tabular-nums' },
+  { key: 'chunks_created',label: 'Chunks',    class: 'tabular-nums' },
+  { key: 'started_at',    label: 'Started' },
+  { key: 'actions',       label: '' },
 ]
 ```
 
 ### Reduced Motion Fallback
 
-Progress bar: instant width change (no spring). Spinner replaced with static icon.
+Progress bar: instant width change (no spring). Spinner replaced with static icon with `text-accent-violet` color (still visible as "active").
 
 ### Accessibility
 
 - URL input: `<label>` associated via `for`/`id`, or `aria-label="Store URL"`
 - Crawl status badge: `aria-live="polite"` wrapper so status changes are announced
 - Progress bar: `role="progressbar" :aria-valuenow="progressPct" aria-valuemin="0" aria-valuemax="100"`
+- Non-breaking spaces in stat values (e.g., `12&nbsp;/&nbsp;50 pages`) for cleaner screen reader output
 
 ---
 
@@ -625,9 +846,9 @@ Progress bar: instant width change (no spring). Spinner replaced with static ico
 └──────────────────────────────────────────────────────┘
 ```
 
-Stat cards: same pattern as Overview section 5. Grid: `grid-cols-1 sm:grid-cols-3 gap-4 mb-6`
+Stat cards: same pattern as Overview section 5, including count-up animation and hover glow. Grid: `grid-cols-1 sm:grid-cols-3 gap-4 mb-6`
 
-No-answer rate badge color: `>20% → error`, `10-20% → warning`, `<10% → success`
+No-answer rate badge color: `>20% -> error`, `10-20% -> warning`, `<10% -> success`
 
 ### Accessibility
 
@@ -703,10 +924,12 @@ Danger zone card:
 **File**: `app/layouts/auth.vue`, `app/pages/auth/login.vue`, `app/pages/auth/signup.vue`
 **Libraries**: Motion/Vue
 
-### Structure (centered card on dark bg)
+### Structure (centered card on dark bg with noise + dual glow)
 
 ```
 ┌────────────────── full screen bg-surface-base ──────────────────┐
+│  [NoiseOverlay — same component as marketing, z-50]              │
+│  [Dual radial glow — violet top-left, cyan bottom-right]        │
 │                                                                  │
 │              ┌──────────────────────────┐                        │
 │              │  [Logo mark + wordmark]  │                        │
@@ -726,18 +949,31 @@ Danger zone card:
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-**Background**: `min-h-screen bg-surface-base flex items-center justify-center p-4`
+**Background**: `min-h-screen bg-surface-base flex items-center justify-center p-4 relative overflow-hidden`
 
-**Card**: `w-full max-w-sm` — use `UCard` with custom class `bg-surface-2 border-border-base`
+**Noise overlay**: Reuse `<NoiseOverlay />` from `app/components/marketing/NoiseOverlay.vue`. This is the same grain texture used on the marketing surface, creating continuity between the landing page and the auth flow.
 
-**Glow accent behind card**:
+**Dual glow background** (matches marketing hero mesh language):
 ```html
+<!-- Violet glow — top left -->
 <div
-  class="absolute inset-0 pointer-events-none"
+  class="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 pointer-events-none"
   aria-hidden="true"
-  style="background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(124,58,237,0.12) 0%, transparent 70%);"
+  style="background: radial-gradient(ellipse at center, rgba(124,58,237,0.15) 0%, transparent 70%); filter: blur(80px)"
+/>
+<!-- Cyan glow — bottom right -->
+<div
+  class="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 pointer-events-none"
+  aria-hidden="true"
+  style="background: radial-gradient(ellipse at center, rgba(6,182,212,0.10) 0%, transparent 70%); filter: blur(80px)"
 />
 ```
+
+This creates the same violet/cyan duotone atmosphere as the marketing hero, but softer and more diffuse. The user feels they are still "inside" the same product.
+
+**Card**: `w-full max-w-sm relative` — use `UCard` with `class="glass border-border-base"`
+
+Using `.glass` on the auth card gives it a frosted, elevated look against the glowing background, matching the visual quality of the marketing surface.
 
 ### Entrance Animation
 
@@ -756,7 +992,7 @@ Danger zone card:
 
 ### Reduced Motion Fallback
 
-Card appears instantly (`opacity: 0 → 1` only, no y/scale).
+Card appears instantly (`opacity: 0 -> 1` only, no y/scale).
 
 ### Accessibility
 
@@ -768,13 +1004,105 @@ Card appears instantly (`opacity: 0 → 1` only, no y/scale).
 
 ---
 
-## Implementation Notes for `frontend-developer`
+## 11. Dashboard-Specific Motion/Vue Patterns Reference
+
+All patterns in one place for `frontend-developer` to reference.
+
+### Count-Up Numbers
+See `useCountUp()` composable in Section 5. Use for stat card values, analytics metrics.
+
+### Skeleton Shimmer
+```vue
+<motion.div
+  class="h-4 w-24 rounded bg-surface-3"
+  :animate="{ opacity: [0.4, 1, 0.4] }"
+  :transition="{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }"
+/>
+```
+
+### List Stagger (faster than marketing)
+```vue
+<motion.ul
+  :variants="{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.04 } } }"
+  initial="hidden"
+  animate="visible"
+>
+  <motion.li
+    v-for="item in items"
+    :key="item.id"
+    :variants="{ hidden: { opacity: 0, y: 6 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } } }"
+  />
+</motion.ul>
+```
+
+### Button Press
+```vue
+<motion.button :whilePress="{ scale: 0.97 }">...</motion.button>
+```
+
+### Progress Bar (spring)
+```vue
+<motion.div
+  class="h-full bg-gradient-to-r from-accent-violet to-accent-cyan rounded-full"
+  :animate="{ width: `${percent}%` }"
+  :transition="{ type: 'spring', stiffness: 40, damping: 12 }"
+/>
+```
+
+### Toast / Notification Enter
+```vue
+<motion.div
+  :initial="{ opacity: 0, y: -8, scale: 0.95 }"
+  :animate="{ opacity: 1, y: 0, scale: 1 }"
+  :exit="{ opacity: 0, y: -8, scale: 0.95 }"
+  :transition="{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }"
+/>
+```
+
+### Modal / Dialog Enter
+```vue
+<AnimatePresence>
+  <motion.div
+    v-if="isOpen"
+    :initial="{ opacity: 0, scale: 0.95, y: 10 }"
+    :animate="{ opacity: 1, scale: 1, y: 0 }"
+    :exit="{ opacity: 0, scale: 0.95, y: 10 }"
+    :transition="{ type: 'spring', stiffness: 300, damping: 25 }"
+    style="overscroll-behavior: contain"
+  >
+    <slot />
+  </motion.div>
+</AnimatePresence>
+```
+
+### Reduced Motion — Global Rule
+
+Every animation pattern above must check `prefers-reduced-motion`. For Motion/Vue, wrap in a computed:
+
+```ts
+const prefersReduced = ref(false)
+onMounted(() => {
+  prefersReduced.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+})
+
+// Then conditionally pass :animate="prefersReduced ? {} : { ... }"
+// Or for simple cases, animate opacity only and skip transform
+```
+
+---
+
+## 12. Implementation Notes for `frontend-developer`
 
 1. **Use `UCard`, `UButton`, `UInput`, `UTable`, `UBadge`, `UFormGroup`, `UModal`, `UAvatar`** — all auto-imported
-2. **`useSidebar()` composable** — manage mobile sidebar open/close state (create in `app/composables/useSidebar.ts`)
-3. **`useColorMode()`** from `@nuxtjs/color-mode` — already bundled with Nuxt UI
-4. **Route-based page title**: inject via `useHead({ title: 'Overview' })` in each page — header reads via Nuxt's `useAppConfig` or a shared `useDashboard()` composable
-5. **`merchant_id`**: auth store holds the current merchant — never pass from client to API, server reads from session
-6. **Crawl real-time**: Supabase Realtime subscription in `useCrawl()` composable updates `crawlJob` reactive ref; `CrawlProgressCard` binds to it
-7. **Empty states**: every table/list must handle `rows.length === 0` — see section 5 empty state pattern
-8. **No `console.log`** — use `useLogger()` or structured logging per project rules
+2. **CSS utilities**: `.glass`, `.glow-violet`, `.glow-cyan`, `.gradient-text-violet-cyan` are defined in `assets/css/main.css` — use them per the guidelines in Section 1
+3. **`useSidebar()` composable** — manage mobile sidebar open/close state (create in `app/composables/useSidebar.ts`)
+4. **`useCountUp()` composable** — animate stat card numbers (create in `app/composables/useCountUp.ts`)
+5. **`useColorMode()`** from `@nuxtjs/color-mode` — already bundled with Nuxt UI
+6. **Route-based page title**: inject via `useHead({ title: 'Overview' })` in each page — header reads via Nuxt's `useAppConfig` or a shared `useDashboard()` composable
+7. **`merchant_id`**: auth store holds the current merchant — never pass from client to API, server reads from session
+8. **Crawl real-time**: Supabase Realtime subscription in `useCrawl()` composable updates `crawlJob` reactive ref; `CrawlProgressCard` binds to it
+9. **Empty states**: every table/list must handle `rows.length === 0` — use the violet-glow empty state pattern from Section 5
+10. **Skeleton loading**: show shimmer skeletons while data loads — never show a blank page
+11. **Mouse-follow glow**: reuse the `onMouseMove` pattern from marketing `FeatureBento.vue` for stat cards
+12. **`NoiseOverlay`**: reuse from `app/components/marketing/NoiseOverlay.vue` in the auth layout
+13. **No `console.log`** — use `useLogger()` or structured logging per project rules
