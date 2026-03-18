@@ -2,8 +2,8 @@ export function useGsap() {
   const { $gsap, $ScrollTrigger } = useNuxtApp()
 
   onUnmounted(() => {
-    $ScrollTrigger?.getAll().forEach((t: { kill: () => void }) => t.kill())
+    $ScrollTrigger?.getAll().forEach(t => t.kill())
   })
 
-  return { gsap: $gsap as typeof import('gsap').gsap, ScrollTrigger: $ScrollTrigger }
+  return { gsap: $gsap, ScrollTrigger: $ScrollTrigger }
 }
