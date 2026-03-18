@@ -157,7 +157,7 @@ function formatPrice(plan: typeof plans[0]) {
 
           <UButton
             :label="plan.cta"
-            :color="plan.highlighted ? 'violet' : 'neutral'"
+            :color="plan.highlighted ? 'primary' : 'neutral'"
             :variant="plan.highlighted ? 'solid' : 'outline'"
             block
             size="lg"

@@ -37,3 +37,11 @@ BEGIN
   LIMIT match_count;
 END;
 $$;
+
+-- S1 Fix: Restrict match_chunks to service_role only.
+-- Supabase grants EXECUTE to PUBLIC (includes anon/authenticated) by default.
+-- This function must only be callable from server routes via the service role key.
+REVOKE EXECUTE ON FUNCTION match_chunks(vector, float, int, uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION match_chunks(vector, float, int, uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION match_chunks(vector, float, int, uuid) FROM authenticated;
+GRANT EXECUTE ON FUNCTION match_chunks(vector, float, int, uuid) TO service_role;
