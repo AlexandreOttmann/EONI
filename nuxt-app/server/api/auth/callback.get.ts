@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   if (upsertError) {
     // Non-fatal: log and continue — user can still reach the dashboard,
     // but degraded (no merchant profile). Surface in monitoring.
-    console.error('[auth/callback] merchant upsert failed', upsertError.message)
+    console.warn('[auth/callback] merchant upsert failed', upsertError.message)
   }
 
   return sendRedirect(event, '/dashboard')

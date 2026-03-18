@@ -10,8 +10,29 @@ const bodySchema = z.object({
   widget_key: z.string().uuid()
 })
 
+// In-memory rate limiter: 20 requests per minute per widget_key
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(key)
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + 60_000 })
+    return true
+  }
+  if (entry.count >= 20) return false
+  entry.count++
+  return true
+}
+
 export default defineEventHandler(async (event) => {
   const body = await readValidatedBody(event, bodySchema.parse)
+
+  if (!checkRateLimit(body.widget_key)) {
+    setResponseHeader(event, 'Retry-After', '60')
+    throw createError({ statusCode: 429, message: 'Rate limit exceeded. Try again in 60 seconds.' })
+  }
+
   const client = await serverSupabaseServiceRole(event)
   const config = useRuntimeConfig(event)
 

@@ -13,12 +13,14 @@ async function processJob(
   url: string,
   merchantId: string,
   merchantName: string,
-  config: { cloudflareAccountId: string; cloudflareCrawlApiToken: string; openaiApiKey: string },
-  supabaseUrl: string,
-  supabaseKey: string
+  config: { cloudflareAccountId: string; cloudflareCrawlApiToken: string; openaiApiKey: string }
 ) {
+  const runtimeConfig = useRuntimeConfig()
   const { createClient } = await import('@supabase/supabase-js')
-  const client = createClient(supabaseUrl, supabaseKey)
+  const client = createClient(
+    runtimeConfig.supabaseUrl as string,
+    runtimeConfig.supabaseServiceRoleKey as string
+  )
 
   try {
     await client
@@ -154,9 +156,7 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
       cloudflareAccountId: config.cloudflareAccountId as string,
       cloudflareCrawlApiToken: config.cloudflareCrawlApiToken as string,
       openaiApiKey: config.openaiApiKey as string
-    },
-    process.env.SUPABASE_URL ?? '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+    }
   ).catch(() => { /* errors handled inside processJob */ })
 
   return { job_id: job.id, status: 'pending' }

@@ -171,6 +171,10 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 - `nuxt-app/app/types/api.ts` — all API types (Merchant, CrawlJob, Page, Chunk, Conversation, Message, request/response types)
 - `nuxt-app/app/types/database.types.ts` — Supabase DB type stub (replace with `supabase gen types` after project creation)
 
+### Security audit (Phase 1.2 + 1.3)
+
+✅ Security audit complete — S1 rate limiting, S2 env refactor, S3 logging fixed
+
 ### What exists (Phase 1.2 + 1.3 backend — Crawl Pipeline + RAG Chat)
 
 - `nuxt-app/supabase/migrations/0005_conversations_unique_constraint.sql` — UNIQUE(merchant_id, session_id) on conversations

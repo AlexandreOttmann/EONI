@@ -10,18 +10,20 @@ export default defineNuxtConfig({
     'motion-v/nuxt'
   ],
 
-  runtimeConfig: {
-    anthropicApiKey: '',
-    openaiApiKey: '',
-    cloudflareAccountId: '',
-    cloudflareCrawlApiToken: ''
-  },
-
   devtools: {
     enabled: true
   },
 
   css: ['~/assets/css/main.css'],
+
+  runtimeConfig: {
+    anthropicApiKey: '',
+    openaiApiKey: '',
+    cloudflareAccountId: '',
+    cloudflareCrawlApiToken: '',
+    supabaseUrl: process.env.SUPABASE_URL ?? '',
+    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+  },
 
   compatibilityDate: '2025-01-15',
   vite: {
