@@ -3,6 +3,9 @@ const route = useRoute()
 const colorMode = useColorMode()
 const { toggle: toggleSidebar } = useSidebar()
 
+const authStore = useAuthStore()
+const { displayName, avatarUrl } = storeToRefs(authStore)
+
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     '/dashboard': 'Overview',
@@ -57,14 +60,39 @@ function toggleColorMode() {
         to="/dashboard/crawl"
         aria-label="Start a new crawl job"
       />
-      <UButton
-        :icon="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'"
-        variant="ghost"
-        color="neutral"
-        size="sm"
-        aria-label="Switch to dark/light mode"
-        @click="toggleColorMode"
-      />
+      <ClientOnly>
+        <UButton
+          :icon="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'"
+          variant="ghost"
+          color="neutral"
+          size="sm"
+          aria-label="Switch to dark/light mode"
+          @click="toggleColorMode"
+        />
+      </ClientOnly>
+      <UDropdownMenu
+        :items="[[
+          { label: displayName ?? 'Account', disabled: true }
+        ], [
+          { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/dashboard/settings' }
+        ], [
+          { label: 'Log out', icon: 'i-heroicons-arrow-right-on-rectangle', onSelect: () => authStore.logout() }
+        ]]"
+      >
+        <UButton
+          variant="ghost"
+          color="neutral"
+          size="sm"
+          :aria-label="`Account menu for ${displayName ?? 'user'}`"
+        >
+          <UAvatar
+            size="xs"
+            :src="avatarUrl ?? undefined"
+            :text="displayName?.charAt(0) ?? '?'"
+            :alt="displayName ?? 'Account'"
+          />
+        </UButton>
+      </UDropdownMenu>
     </div>
   </header>
 </template>

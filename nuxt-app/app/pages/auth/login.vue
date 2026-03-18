@@ -1,55 +1,45 @@
-<script setup lang="ts">
-definePageMeta({
-  layout: 'auth'
-})
-
-useHead({
-  title: 'Sign In'
-})
-
-const email = ref('')
-const password = ref('')
-const showPassword = ref(false)
-const isSubmitting = ref(false)
-const errorMessage = ref<string | null>(null)
-
-// TODO: Replace with real API call via $fetch('/api/auth/login')
-async function handleLogin() {
-  errorMessage.value = null
-  isSubmitting.value = true
-  try {
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    // TODO: POST /api/auth/login { email, password }
-    // On success: navigateTo('/dashboard')
-    await navigateTo('/dashboard')
-  } catch (_err: unknown) {
-    errorMessage.value = 'Invalid email or password. Please try again.'
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-// TODO: Implement Google OAuth via Supabase
-function loginWithGoogle() {
-  // Will redirect to Supabase OAuth flow
-  // navigateTo('/api/auth/callback?provider=google', { external: true })
-}
-</script>
-
 <template>
   <UCard class="glass border-border-base">
     <!-- Logo -->
     <div class="flex justify-center mb-6">
-      <NuxtLink to="/" class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan" aria-hidden="true" />
-        <span class="text-base font-display font-semibold text-text-base">ShopAgent</span>
+      <NuxtLink
+        to="/"
+        class="flex items-center gap-2"
+      >
+        <div
+          class="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan"
+          aria-hidden="true"
+        />
+        <span class="text-base font-display font-semibold text-text-base">Eoni</span>
       </NuxtLink>
     </div>
 
     <!-- Heading -->
     <div class="text-center mb-6">
-      <h1 class="text-xl font-display font-semibold text-text-base mb-1">Welcome back</h1>
-      <p class="text-sm text-text-muted">Sign in to your merchant dashboard</p>
+      <h1 class="text-xl font-display font-semibold text-text-base mb-1">
+        Welcome back
+      </h1>
+      <p class="text-sm text-text-muted">
+        Sign in to your merchant dashboard
+      </p>
+    </div>
+
+    <!-- Signup success -->
+    <div
+      v-if="signupSuccess"
+      role="status"
+      class="mb-4 p-3 rounded-lg bg-success/10 border border-success/20 text-sm text-success"
+    >
+      Account created! Check your email to confirm, then sign in.
+    </div>
+
+    <!-- OAuth error -->
+    <div
+      v-if="oauthError"
+      role="alert"
+      class="mb-4 p-3 rounded-lg bg-error/10 border border-error/20 text-sm text-error"
+    >
+      Could not sign in with Google. Make sure you have an account first.
     </div>
 
     <!-- Error message -->
@@ -62,9 +52,16 @@ function loginWithGoogle() {
     </div>
 
     <!-- Form -->
-    <form aria-label="Sign in" class="space-y-4" @submit.prevent="handleLogin">
+    <form
+      aria-label="Sign in"
+      class="space-y-4"
+      @submit.prevent="handleLogin"
+    >
       <div>
-        <label for="login-email" class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5">
+        <label
+          for="login-email"
+          class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5"
+        >
           Email
         </label>
         <UInput
@@ -80,7 +77,10 @@ function loginWithGoogle() {
       </div>
 
       <div>
-        <label for="login-password" class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5">
+        <label
+          for="login-password"
+          class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5"
+        >
           Password
         </label>
         <div class="relative">
@@ -153,3 +153,47 @@ function loginWithGoogle() {
     </p>
   </UCard>
 </template>
+
+<script setup lang="ts">
+definePageMeta({ layout: 'auth' })
+
+useHead({ title: 'Sign In' })
+
+const email = ref('')
+const password = ref('')
+const showPassword = ref(false)
+const isSubmitting = ref(false)
+const errorMessage = ref<string | null>(null)
+
+// Show "check your email" banner if redirected from signup
+const route = useRoute()
+const signupSuccess = computed(() => route.query.registered === '1')
+const oauthError = computed(() => route.query.error === 'oauth_failed')
+
+async function handleLogin() {
+  errorMessage.value = null
+  isSubmitting.value = true
+  try {
+    const supabase = useSupabaseClient()
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.value,
+      password: password.value
+    })
+    if (error) throw error
+    await navigateTo('/dashboard')
+  } catch (err: unknown) {
+    const authErr = err as { message?: string }
+    errorMessage.value = authErr?.message ?? 'Invalid email or password. Please try again.'
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+async function loginWithGoogle() {
+  const supabase = useSupabaseClient()
+  await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}/api/auth/callback` }
+  })
+}
+</script>

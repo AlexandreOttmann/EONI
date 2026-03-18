@@ -7,15 +7,33 @@ export default defineEventHandler(async (event): Promise<MeResponse> => {
 
   const serviceClient = await serverSupabaseServiceRole(event)
 
-  const { data: merchant, error } = await serviceClient
+  const { data: existing, error: selectError } = await serviceClient
     .from('merchants')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', user.sub)
     .single()
 
-  if (error || !merchant) {
-    throw createError({ statusCode: 404, message: 'Merchant profile not found' })
+  if (selectError && selectError.code !== 'PGRST116') {
+    throw createError({ statusCode: 500, message: 'Database error' })
   }
 
-  return { merchant: merchant as unknown as import('~/types/api').Merchant }
+  if (existing) {
+    return { merchant: existing as unknown as import('~/types/api').Merchant }
+  }
+
+  const { data: created, error: insertError } = await serviceClient
+    .from('merchants')
+    .insert({
+      id: user.sub,
+      email: user.email!,
+      name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email?.split('@')[0] ?? 'User'
+    })
+    .select()
+    .single()
+
+  if (insertError || !created) {
+    throw createError({ statusCode: 500, message: 'Failed to provision merchant profile' })
+  }
+
+  return { merchant: created as unknown as import('~/types/api').Merchant }
 })

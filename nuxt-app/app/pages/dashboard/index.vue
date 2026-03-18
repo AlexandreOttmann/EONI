@@ -2,7 +2,8 @@
 import type { CrawlJob, Conversation } from '~/types/api'
 
 definePageMeta({
-  layout: 'dashboard'
+  layout: 'dashboard',
+  middleware: 'auth'
 })
 
 useHead({
@@ -163,14 +164,20 @@ onMounted(() => {
 
 <template>
   <div>
-    <h1 class="text-[clamp(1.5rem,3vw,2rem)] font-display font-semibold text-text-base mb-6" style="text-wrap: balance">
+    <h1
+      class="text-[clamp(1.5rem,3vw,2rem)] font-display font-semibold text-text-base mb-6"
+      style="text-wrap: balance"
+    >
       Overview
     </h1>
 
     <!-- Skeleton loading state -->
     <template v-if="isLoading">
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <UCard v-for="i in 4" :key="i">
+        <UCard
+          v-for="i in 4"
+          :key="i"
+        >
           <div class="space-y-3">
             <div class="flex items-center justify-between">
               <motion
@@ -241,7 +248,10 @@ onMounted(() => {
                   {{ stat.label }}
                 </span>
                 <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-violet/10">
-                  <UIcon :name="stat.icon" class="w-3.5 h-3.5 text-accent-violet" />
+                  <UIcon
+                    :name="stat.icon"
+                    class="w-3.5 h-3.5 text-accent-violet"
+                  />
                 </div>
               </div>
 
@@ -293,9 +303,14 @@ onMounted(() => {
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <UCard>
           <template #header>
-            <h2 class="text-sm font-medium text-text-base">Recent Crawls</h2>
+            <h2 class="text-sm font-medium text-text-base">
+              Recent Crawls
+            </h2>
           </template>
-          <UTable :data="recentCrawls" :columns="crawlColumns">
+          <UTable
+            :data="recentCrawls"
+            :columns="crawlColumns"
+          >
             <template #url-cell="{ row }">
               <span class="max-w-xs truncate block text-sm font-mono">{{ row.original.url }}</span>
             </template>
@@ -318,14 +333,23 @@ onMounted(() => {
         </UCard>
         <UCard>
           <template #header>
-            <h2 class="text-sm font-medium text-text-base">Recent Conversations</h2>
+            <h2 class="text-sm font-medium text-text-base">
+              Recent Conversations
+            </h2>
           </template>
-          <UTable :data="recentConversations" :columns="conversationColumns">
+          <UTable
+            :data="recentConversations"
+            :columns="conversationColumns"
+          >
             <template #session_id-cell="{ row }">
               <span class="text-sm font-mono text-text-muted">{{ row.original.session_id.slice(0, 8) }}</span>
             </template>
             <template #source-cell="{ row }">
-              <UBadge variant="subtle" size="xs" color="neutral">
+              <UBadge
+                variant="subtle"
+                size="xs"
+                color="neutral"
+              >
                 {{ row.original.source }}
               </UBadge>
             </template>
@@ -347,14 +371,24 @@ onMounted(() => {
             aria-hidden="true"
           />
           <div class="relative w-14 h-14 rounded-full bg-accent-violet/10 border border-accent-violet/20 flex items-center justify-center">
-            <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 text-accent-violet" />
+            <UIcon
+              name="i-heroicons-arrow-path"
+              class="w-6 h-6 text-accent-violet"
+            />
           </div>
         </div>
-        <h3 class="text-base font-display font-medium text-text-base mb-1">No crawls yet</h3>
+        <h3 class="text-base font-display font-medium text-text-base mb-1">
+          No crawls yet
+        </h3>
         <p class="text-sm text-text-muted mb-6 max-w-xs">
           Add your store URL to start indexing your products for AI search.
         </p>
-        <UButton label="Start your first crawl" to="/dashboard/crawl" color="primary" size="md" />
+        <UButton
+          label="Start your first crawl"
+          to="/dashboard/crawl"
+          color="primary"
+          size="md"
+        />
       </div>
     </template>
   </div>

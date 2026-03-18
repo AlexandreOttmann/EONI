@@ -4,6 +4,10 @@ const { gsap } = useGsap()
 const borderRef = ref<HTMLElement | null>(null)
 const mobileMenuOpen = ref(false)
 
+const user = useSupabaseUser()
+const authStore = useAuthStore()
+const { merchant } = storeToRefs(authStore)
+
 const navLinks = [
   { label: 'Features', href: '#features' },
   { label: 'How it works', href: '#how-it-works' },
@@ -92,22 +96,53 @@ onUnmounted(() => {
 
       <!-- Right zone -->
       <div class="flex items-center gap-3">
-        <NuxtLink
-          to="/auth/login"
-          class="hidden lg:inline-flex text-sm text-text-muted transition-colors duration-200 hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base rounded-sm px-2 py-1"
-        >
-          Login
-        </NuxtLink>
-        <NuxtLink
-          to="/auth/login"
-          class="hidden lg:inline-flex items-center gap-1.5 rounded-full bg-accent-violet px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-accent-violet-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base"
-        >
-          Get started
-          <UIcon
-            name="i-lucide-arrow-right"
-            class="h-3.5 w-3.5"
-          />
-        </NuxtLink>
+        <!-- Authenticated: avatar dropdown -->
+        <template v-if="user">
+          <UDropdownMenu
+            :items="[[
+              { label: merchant?.name ?? user.email ?? 'Account', disabled: true }
+            ], [
+              { label: 'Dashboard', icon: 'i-heroicons-squares-2x2', to: '/dashboard' },
+              { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/dashboard/settings' }
+            ], [
+              { label: 'Log out', icon: 'i-heroicons-arrow-right-on-rectangle', onSelect: () => authStore.logout() }
+            ]]"
+          >
+            <UButton
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              :aria-label="`Account menu for ${merchant?.name ?? 'user'}`"
+              class="hidden lg:inline-flex"
+            >
+              <UAvatar
+                size="xs"
+                :text="merchant?.name?.charAt(0) ?? user.email?.charAt(0) ?? '?'"
+                :alt="merchant?.name ?? 'Account'"
+              />
+            </UButton>
+          </UDropdownMenu>
+        </template>
+
+        <!-- Unauthenticated: login + get started -->
+        <template v-else>
+          <NuxtLink
+            to="/auth/login"
+            class="hidden lg:inline-flex text-sm text-text-muted transition-colors duration-200 hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base rounded-sm px-2 py-1"
+          >
+            Login
+          </NuxtLink>
+          <NuxtLink
+            to="/auth/login"
+            class="hidden lg:inline-flex items-center gap-1.5 rounded-full bg-accent-violet px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-accent-violet-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base"
+          >
+            Get started
+            <UIcon
+              name="i-lucide-arrow-right"
+              class="h-3.5 w-3.5"
+            />
+          </NuxtLink>
+        </template>
 
         <!-- Mobile hamburger -->
         <button
@@ -158,24 +193,41 @@ onUnmounted(() => {
         </ul>
 
         <div class="mt-10 flex flex-col gap-3">
-          <NuxtLink
-            to="/auth/login"
-            class="block text-center text-sm text-text-muted transition-colors duration-200 hover:text-text-base rounded-sm py-2"
-            @click="closeMenu"
-          >
-            Login
-          </NuxtLink>
-          <NuxtLink
-            to="/auth/login"
-            class="inline-flex items-center justify-center gap-1.5 rounded-full bg-accent-violet px-6 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-accent-violet-2"
-            @click="closeMenu"
-          >
-            Get started
-            <UIcon
-              name="i-lucide-arrow-right"
-              class="h-3.5 w-3.5"
-            />
-          </NuxtLink>
+          <template v-if="user">
+            <NuxtLink
+              to="/dashboard"
+              class="block text-center text-sm text-text-muted transition-colors duration-200 hover:text-text-base rounded-sm py-2"
+              @click="closeMenu"
+            >
+              Dashboard
+            </NuxtLink>
+            <button
+              class="inline-flex items-center justify-center gap-1.5 rounded-full bg-surface-3 px-6 py-3 text-sm font-medium text-text-base transition-colors duration-200 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet"
+              @click="() => { closeMenu(); authStore.logout() }"
+            >
+              Log out
+            </button>
+          </template>
+          <template v-else>
+            <NuxtLink
+              to="/auth/login"
+              class="block text-center text-sm text-text-muted transition-colors duration-200 hover:text-text-base rounded-sm py-2"
+              @click="closeMenu"
+            >
+              Login
+            </NuxtLink>
+            <NuxtLink
+              to="/auth/login"
+              class="inline-flex items-center justify-center gap-1.5 rounded-full bg-accent-violet px-6 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-accent-violet-2"
+              @click="closeMenu"
+            >
+              Get started
+              <UIcon
+                name="i-lucide-arrow-right"
+                class="h-3.5 w-3.5"
+              />
+            </NuxtLink>
+          </template>
         </div>
       </motion>
     </AnimatePresence>

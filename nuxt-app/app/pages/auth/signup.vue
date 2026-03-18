@@ -1,11 +1,7 @@
 <script setup lang="ts">
-definePageMeta({
-  layout: 'auth'
-})
+definePageMeta({ layout: 'auth' })
 
-useHead({
-  title: 'Create Account'
-})
+useHead({ title: 'Create Account' })
 
 const name = ref('')
 const email = ref('')
@@ -15,25 +11,34 @@ const showPassword = ref(false)
 const isSubmitting = ref(false)
 const errorMessage = ref<string | null>(null)
 
-// TODO: Replace with real API call via $fetch('/api/auth/signup')
 async function handleSignup() {
   errorMessage.value = null
   isSubmitting.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    // TODO: POST /api/auth/signup { name, email, password, domain }
-    // On success: navigateTo('/dashboard')
-    await navigateTo('/dashboard')
-  } catch (_err: unknown) {
-    errorMessage.value = 'Could not create account. Please try again.'
+    await $fetch('/api/auth/signup', {
+      method: 'POST',
+      body: {
+        name: name.value,
+        email: email.value,
+        password: password.value,
+        ...(domain.value ? { domain: domain.value } : {})
+      }
+    })
+    await navigateTo('/auth/login?registered=1')
+  } catch (err: unknown) {
+    const fetchErr = err as { data?: { message?: string } }
+    errorMessage.value = fetchErr?.data?.message ?? 'Could not create account. Please try again.'
   } finally {
     isSubmitting.value = false
   }
 }
 
-// TODO: Implement Google OAuth via Supabase
-function signupWithGoogle() {
-  // Will redirect to Supabase OAuth flow
+async function signupWithGoogle() {
+  const supabase = useSupabaseClient()
+  await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}/api/auth/callback` }
+  })
 }
 </script>
 
@@ -41,16 +46,26 @@ function signupWithGoogle() {
   <UCard class="glass border-border-base">
     <!-- Logo -->
     <div class="flex justify-center mb-6">
-      <NuxtLink to="/" class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan" aria-hidden="true" />
-        <span class="text-base font-display font-semibold text-text-base">ShopAgent</span>
+      <NuxtLink
+        to="/"
+        class="flex items-center gap-2"
+      >
+        <div
+          class="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan"
+          aria-hidden="true"
+        />
+        <span class="text-base font-display font-semibold text-text-base">Eoni</span>
       </NuxtLink>
     </div>
 
     <!-- Heading -->
     <div class="text-center mb-6">
-      <h1 class="text-xl font-display font-semibold text-text-base mb-1">Create your account</h1>
-      <p class="text-sm text-text-muted">Start turning your store into an AI storefront</p>
+      <h1 class="text-xl font-display font-semibold text-text-base mb-1">
+        Create your account
+      </h1>
+      <p class="text-sm text-text-muted">
+        Start turning your store into an AI storefront
+      </p>
     </div>
 
     <!-- Error message -->
@@ -63,9 +78,16 @@ function signupWithGoogle() {
     </div>
 
     <!-- Form -->
-    <form aria-label="Create account" class="space-y-4" @submit.prevent="handleSignup">
+    <form
+      aria-label="Create account"
+      class="space-y-4"
+      @submit.prevent="handleSignup"
+    >
       <div>
-        <label for="signup-name" class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5">
+        <label
+          for="signup-name"
+          class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5"
+        >
           Business name
         </label>
         <UInput
@@ -81,7 +103,10 @@ function signupWithGoogle() {
       </div>
 
       <div>
-        <label for="signup-email" class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5">
+        <label
+          for="signup-email"
+          class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5"
+        >
           Email
         </label>
         <UInput
@@ -97,7 +122,10 @@ function signupWithGoogle() {
       </div>
 
       <div>
-        <label for="signup-password" class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5">
+        <label
+          for="signup-password"
+          class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5"
+        >
           Password
         </label>
         <div class="relative">
@@ -126,7 +154,10 @@ function signupWithGoogle() {
       </div>
 
       <div>
-        <label for="signup-domain" class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5">
+        <label
+          for="signup-domain"
+          class="block text-xs font-mono uppercase tracking-[0.12em] text-text-muted mb-1.5"
+        >
           Store URL
           <span class="text-text-subtle">(optional)</span>
         </label>

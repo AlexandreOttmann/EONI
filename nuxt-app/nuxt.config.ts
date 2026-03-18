@@ -4,6 +4,7 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@nuxt/ui',
     '@nuxtjs/supabase',
+    '@pinia/nuxt',
     '@oro.ad/nuxt-claude-devtools',
     'dayjs-nuxt',
     '@vueuse/nuxt',

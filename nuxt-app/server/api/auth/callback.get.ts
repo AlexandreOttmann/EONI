@@ -5,14 +5,14 @@ export default defineEventHandler(async (event) => {
   const code = query.code as string | undefined
 
   if (!code) {
-    throw createError({ statusCode: 400, message: 'Missing OAuth code' })
+    return sendRedirect(event, '/auth/login?error=oauth_failed')
   }
 
   const client = await serverSupabaseClient(event)
   const { data, error } = await client.auth.exchangeCodeForSession(code)
 
   if (error || !data.user || !data.user.email) {
-    throw createError({ statusCode: 400, message: 'OAuth authentication failed' })
+    return sendRedirect(event, '/auth/login?error=oauth_failed')
   }
 
   // Ensure a merchants row exists for this user.

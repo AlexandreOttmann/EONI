@@ -13,7 +13,7 @@ export default defineEventHandler(async (event): Promise<CrawlStatusResponse> =>
     .from('crawl_jobs')
     .select('*')
     .eq('id', jobId)
-    .eq('merchant_id', user.id)
+    .eq('merchant_id', user.sub)
     .single()
 
   if (error || !data) throw createError({ statusCode: 404, message: 'Crawl job not found' })

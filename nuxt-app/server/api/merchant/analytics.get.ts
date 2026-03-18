@@ -14,11 +14,11 @@ export default defineEventHandler(async (event): Promise<AnalyticsResponse> => {
     { count: noAnswerCount },
     { count: totalAssistantMessages }
   ] = await Promise.all([
-    client.from('conversations').select('*', { count: 'exact', head: true }).eq('merchant_id', user.id),
-    client.from('messages').select('*', { count: 'exact', head: true }).eq('merchant_id', user.id),
-    client.from('messages').select('content').eq('merchant_id', user.id).eq('role', 'user').limit(1000),
-    client.from('messages').select('*', { count: 'exact', head: true }).eq('merchant_id', user.id).eq('role', 'assistant').or('confidence_score.is.null,confidence_score.lt.0.72'),
-    client.from('messages').select('*', { count: 'exact', head: true }).eq('merchant_id', user.id).eq('role', 'assistant')
+    client.from('conversations').select('*', { count: 'exact', head: true }).eq('merchant_id', user.sub),
+    client.from('messages').select('*', { count: 'exact', head: true }).eq('merchant_id', user.sub),
+    client.from('messages').select('content').eq('merchant_id', user.sub).eq('role', 'user').limit(1000),
+    client.from('messages').select('*', { count: 'exact', head: true }).eq('merchant_id', user.sub).eq('role', 'assistant').or('confidence_score.is.null,confidence_score.lt.0.72'),
+    client.from('messages').select('*', { count: 'exact', head: true }).eq('merchant_id', user.sub).eq('role', 'assistant')
   ])
 
   // Aggregate top questions client-side from fetched data

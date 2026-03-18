@@ -10,6 +10,8 @@ watch(() => route.path, () => {
 
 <template>
   <div class="flex min-h-screen bg-surface-base">
+    <DashboardBackground />
+
     <!-- Skip to main content link -->
     <a
       href="#main-content"
@@ -61,9 +63,9 @@ watch(() => route.path, () => {
       <DashboardHeader />
       <AnimatePresence mode="wait">
         <motion
+          id="main-content"
           :key="route.path"
           as="main"
-          id="main-content"
           class="flex-1 p-6 overflow-y-auto"
           :initial="{ opacity: 0 }"
           :animate="{ opacity: 1 }"

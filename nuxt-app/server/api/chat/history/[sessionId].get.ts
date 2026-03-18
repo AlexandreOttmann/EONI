@@ -13,7 +13,7 @@ export default defineEventHandler(async (event): Promise<ChatHistoryResponse> =>
     .from('conversations')
     .select('*')
     .eq('session_id', sessionId)
-    .eq('merchant_id', user.id)
+    .eq('merchant_id', user.sub)
     .single()
 
   if (!conversation) throw createError({ statusCode: 404, message: 'Conversation not found' })
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event): Promise<ChatHistoryResponse> =>
     .from('messages')
     .select('*')
     .eq('conversation_id', conversation.id)
-    .eq('merchant_id', user.id)
+    .eq('merchant_id', user.sub)
     .order('created_at', { ascending: true })
 
   if (error) throw createError({ statusCode: 500, message: 'Failed to fetch messages' })

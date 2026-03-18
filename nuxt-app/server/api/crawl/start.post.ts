@@ -122,7 +122,7 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
   const { data: running } = await client
     .from('crawl_jobs')
     .select('id')
-    .eq('merchant_id', user.id)
+    .eq('merchant_id', user.sub)
     .in('status', ['pending', 'running'])
     .limit(1)
     .maybeSingle()
@@ -133,12 +133,12 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
   const { data: merchant } = await client
     .from('merchants')
     .select('name')
-    .eq('id', user.id)
+    .eq('id', user.sub)
     .single()
 
   const { data: job, error } = await client
     .from('crawl_jobs')
-    .insert({ merchant_id: user.id, url: body.url, status: 'pending' })
+    .insert({ merchant_id: user.sub, url: body.url, status: 'pending' })
     .select('id')
     .single()
 
@@ -150,7 +150,7 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
   processJob(
     job.id,
     body.url,
-    user.id,
+    user.sub,
     merchant?.name ?? 'Merchant',
     {
       cloudflareAccountId: config.cloudflareAccountId as string,

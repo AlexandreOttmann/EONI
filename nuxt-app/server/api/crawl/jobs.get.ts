@@ -9,7 +9,7 @@ export default defineEventHandler(async (event): Promise<CrawlJobsResponse> => {
   const { data, error } = await client
     .from('crawl_jobs')
     .select('*')
-    .eq('merchant_id', user.id)
+    .eq('merchant_id', user.sub)
     .order('created_at', { ascending: false })
     .limit(20)
 

@@ -10,7 +10,7 @@ export default defineEventHandler(async (event): Promise<MerchantConfigResponse>
   let { data: rawMerchant, error } = await client
     .from('merchants')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', user.sub)
     .single()
 
   if (error || !rawMerchant) throw createError({ statusCode: 404, message: 'Merchant not found' })
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event): Promise<MerchantConfigResponse>
     const { data: updated } = await client
       .from('merchants')
       .update({ widget_config: mergedConfig as unknown as Json })
-      .eq('id', user.id)
+      .eq('id', user.sub)
       .select('*')
       .single()
     if (updated) merchant = updated as unknown as Merchant

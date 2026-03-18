@@ -26,7 +26,7 @@ const { copied, copy } = useClipboard()
 const widgetKey = ref('wk_abc123def456')
 
 const snippet = computed(() => {
-  return `<script src="https://cdn.shopagent.ai/widget.js"
+  return `<script src="https://cdn.Eoni.ai/widget.js"
   data-key="${widgetKey.value}"
   data-color="${config.primaryColor}"
   data-position="${config.position}"

@@ -21,10 +21,11 @@ const activeIndex = computed(() => {
   return navItems.findIndex(item => isActive(item.to))
 })
 
-// TODO: Replace with real merchant data from useMerchant() composable
-const merchant = ref({
-  name: 'My Store',
-  plan: 'trial' as const
+const authStore = useAuthStore()
+const { merchant, displayName, avatarUrl } = storeToRefs(authStore)
+
+onMounted(() => {
+  authStore.fetchMerchant()
 })
 </script>
 
@@ -39,13 +40,19 @@ const merchant = ref({
         to="/dashboard"
         class="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:outline-none rounded-lg"
       >
-        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan" aria-hidden="true" />
-        <span class="text-sm font-display font-semibold text-text-base">ShopAgent</span>
+        <div
+          class="w-7 h-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan"
+          aria-hidden="true"
+        />
+        <span class="text-sm font-display font-semibold text-text-base">Eoni</span>
       </NuxtLink>
     </div>
 
     <!-- Navigation -->
-    <nav aria-label="Dashboard navigation" class="flex-1 overflow-y-auto py-3 px-2">
+    <nav
+      aria-label="Dashboard navigation"
+      class="flex-1 overflow-y-auto py-3 px-2"
+    >
       <p class="px-3 mb-1 text-xs font-mono uppercase tracking-[0.12em] text-text-subtle">
         Menu
       </p>
@@ -100,22 +107,45 @@ const merchant = ref({
     </nav>
 
     <!-- Merchant footer -->
-    <div class="mt-auto mx-2 mb-2 p-3 rounded-xl glass">
-      <div class="flex items-center gap-2 min-w-0">
-        <UAvatar
-          size="sm"
-          :text="merchant.name.charAt(0)"
-          :alt="merchant.name"
-        />
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-text-base truncate min-w-0">
-            {{ merchant.name }}
-          </p>
-          <UBadge color="primary" variant="subtle" size="xs">
-            {{ merchant.plan }}
-          </UBadge>
-        </div>
-      </div>
+    <div class="mt-auto mx-2 mb-2">
+      <UDropdownMenu
+        :items="[[
+          { label: 'Dashboard', icon: 'i-heroicons-squares-2x2', to: '/dashboard' },
+          { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/dashboard/settings' }
+        ], [
+          { label: 'Log out', icon: 'i-heroicons-arrow-right-on-rectangle', onSelect: () => authStore.logout() }
+        ]]"
+      >
+        <button
+          class="w-full p-3 rounded-xl glass text-left hover:bg-surface-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet"
+          aria-label="Open account menu"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <UAvatar
+              size="sm"
+              :src="avatarUrl ?? undefined"
+              :text="displayName?.charAt(0) ?? '?'"
+              :alt="displayName ?? 'Account'"
+            />
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-text-base truncate min-w-0">
+                {{ displayName ?? '…' }}
+              </p>
+              <UBadge
+                color="primary"
+                variant="subtle"
+                size="xs"
+              >
+                {{ merchant?.subscription_status ?? 'trial' }}
+              </UBadge>
+            </div>
+            <UIcon
+              name="i-heroicons-chevron-up-down"
+              class="w-4 h-4 text-text-subtle shrink-0"
+            />
+          </div>
+        </button>
+      </UDropdownMenu>
     </div>
   </aside>
 </template>

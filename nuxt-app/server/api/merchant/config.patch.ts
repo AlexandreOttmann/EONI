@@ -22,7 +22,7 @@ export default defineEventHandler(async (event): Promise<MerchantConfigResponse>
   const { data: existingRaw } = await client
     .from('merchants')
     .select('widget_config')
-    .eq('id', user.id)
+    .eq('id', user.sub)
     .single()
 
   if (!existingRaw) throw createError({ statusCode: 404, message: 'Merchant not found' })
@@ -46,7 +46,7 @@ export default defineEventHandler(async (event): Promise<MerchantConfigResponse>
   const { data: updatedRaw, error } = await client
     .from('merchants')
     .update(updatePayload)
-    .eq('id', user.id)
+    .eq('id', user.sub)
     .select('*')
     .single()
 
