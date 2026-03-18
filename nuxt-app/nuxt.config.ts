@@ -10,6 +10,13 @@ export default defineNuxtConfig({
     'motion-v/nuxt'
   ],
 
+  runtimeConfig: {
+    anthropicApiKey: '',
+    openaiApiKey: '',
+    cloudflareAccountId: '',
+    cloudflareCrawlApiToken: ''
+  },
+
   devtools: {
     enabled: true
   },
@@ -47,4 +54,5 @@ export default defineNuxtConfig({
   },
   supabase: {
     redirect: false
-  } })
+  }
+})

@@ -182,6 +182,11 @@ export interface ChatDoneEvent {
   message_id: string
 }
 
+export interface ChatHistoryResponse {
+  conversation: Conversation
+  messages: Message[]
+}
+
 // ─── Merchant route types ─────────────────────────────────────
 
 export interface MerchantConfigResponse {

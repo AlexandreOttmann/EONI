@@ -36,21 +36,21 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 | Task | Branch | Status | Agent |
 |------|--------|--------|-------|
-| POST /api/crawl/start (Cloudflare /crawl trigger) | — | ⬜ | backend |
-| Crawl status polling + Supabase Realtime subscription | — | ⬜ | backend |
-| Content chunking (500 tokens, 1 chunk = 1 product) | — | ⬜ | backend |
-| OpenAI embedding generation + pgvector storage | — | ⬜ | backend |
+| POST /api/crawl/start (Cloudflare /crawl trigger) | main | ✅ | backend |
+| Crawl status polling + Supabase Realtime subscription | main | ✅ GET /api/crawl/status/[jobId] + GET /api/crawl/jobs | backend |
+| Content chunking (500 tokens, 1 chunk = 1 product) | main | ✅ server/utils/chunker.ts | backend |
+| OpenAI embedding generation + pgvector storage | main | ✅ server/utils/embedder.ts | backend |
 | Dashboard crawl page (progress UI) | — | ⬜ | ui-ux -> frontend |
 
 ### 1.3 RAG Chat
 
 | Task | Branch | Status | Agent |
 |------|--------|--------|-------|
-| POST /api/chat/stream (SSE endpoint) | — | ⬜ | backend |
-| pgvector similarity search (top 8, score >= 0.72, merchant_id filter) | — | ⬜ | backend |
-| Prompt assembly (system + merchant context + chunks + history) | — | ⬜ | backend |
-| Claude Sonnet streaming via Anthropic SDK | — | ⬜ | backend |
-| Conversation persistence to Supabase | — | ⬜ | backend |
+| POST /api/chat/stream (SSE endpoint) | main | ✅ | backend |
+| pgvector similarity search (top 8, score >= 0.72, merchant_id filter) | main | ✅ via match_chunks RPC | backend |
+| Prompt assembly (system + merchant context + chunks + history) | main | ✅ server/utils/prompt.ts | backend |
+| Claude Sonnet streaming via Anthropic SDK | main | ✅ | backend |
+| Conversation persistence to Supabase | main | ✅ | backend |
 | useChat composable (SSE client) | — | ⬜ | frontend |
 
 ### 1.4 Widget
@@ -112,7 +112,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 ## Current Focus
 
-Phase 1a Marketing Surface complete. Phase 1.1 Foundation frontend (auth UI + dashboard shell) complete. Backend crawl/chat endpoints next.
+Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Crawl Pipeline backend complete. Phase 1.3 RAG Chat backend complete. Frontend wiring of dashboard pages to real APIs is next.
 
 ### What exists (Phase 1a — Marketing Surface)
 
@@ -171,6 +171,22 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation frontend (auth UI + da
 - `nuxt-app/app/types/api.ts` — all API types (Merchant, CrawlJob, Page, Chunk, Conversation, Message, request/response types)
 - `nuxt-app/app/types/database.types.ts` — Supabase DB type stub (replace with `supabase gen types` after project creation)
 
+### What exists (Phase 1.2 + 1.3 backend — Crawl Pipeline + RAG Chat)
+
+- `nuxt-app/supabase/migrations/0005_conversations_unique_constraint.sql` — UNIQUE(merchant_id, session_id) on conversations
+- `nuxt-app/server/utils/chunker.ts` — markdown → ~500-token RawChunk[] with metadata extraction
+- `nuxt-app/server/utils/embedder.ts` — OpenAI text-embedding-3-small, batched up to 2048 texts
+- `nuxt-app/server/utils/prompt.ts` — system prompt + merchant context + chunk context + history assembly
+- `nuxt-app/server/api/crawl/start.post.ts` — trigger Cloudflare crawl, fire-and-forget processJob(), returns job_id immediately
+- `nuxt-app/server/api/crawl/jobs.get.ts` — list last 20 crawl jobs for merchant
+- `nuxt-app/server/api/crawl/status/[jobId].get.ts` — poll single job status
+- `nuxt-app/server/api/merchant/config.get.ts` — get merchant profile, auto-generates widget_key if missing
+- `nuxt-app/server/api/merchant/config.patch.ts` — update name/domain/widget_config, preserves widget_key
+- `nuxt-app/server/api/merchant/analytics.get.ts` — conversation + message counts, top questions, no-answer rate
+- `nuxt-app/server/api/chat/stream.post.ts` — SSE: widget_key auth → embed → pgvector search → Claude Sonnet stream → persist
+- `nuxt-app/server/api/chat/history/[sessionId].get.ts` — fetch conversation + messages for dashboard
+- `nuxt-app/app/types/api.ts` — added ChatHistoryResponse
+
 ---
 
 ## Up Next
@@ -178,9 +194,9 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation frontend (auth UI + da
 1. **security-auditor** -> Review RLS policies in `0002_rls_policies.sql`
 2. ~~**ui-ux-designer** -> Design dashboard layout + design system tokens~~ ✅ done — see `.claude/design-specs/dashboard-layout.md`
 3. ~~**frontend-developer** -> Implement auth UI + dashboard shell~~ ✅ done — all 14 files built, build passes
-4. **backend-developer** -> POST /api/crawl/start + crawl status endpoints (Phase 1.2)
-5. **backend-developer** -> POST /api/chat/stream SSE endpoint (Phase 1.3)
-6. **frontend-developer** -> Wire dashboard pages to real API endpoints once backend is ready
+4. ~~**backend-developer** -> POST /api/crawl/start + crawl status endpoints (Phase 1.2)~~ ✅ done
+5. ~~**backend-developer** -> POST /api/chat/stream SSE endpoint (Phase 1.3)~~ ✅ done
+6. **frontend-developer** -> Wire dashboard pages to real API endpoints (crawl, chat, merchant config, analytics)
 
 ---
 
