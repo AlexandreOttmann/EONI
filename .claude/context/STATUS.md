@@ -21,7 +21,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 ## Phase 1 — MVP Core
 
-### 1.1 Foundation
+### 1.1 Foundation  
 
 | Task | Branch | Status | Agent |
 |------|--------|--------|-------|
@@ -214,9 +214,11 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 - `nuxt-app/server/api/merchant/config.get.ts` — get merchant profile, auto-generates widget_key if missing
 - `nuxt-app/server/api/merchant/config.patch.ts` — update name/domain/widget_config, preserves widget_key
 - `nuxt-app/server/api/merchant/analytics.get.ts` — conversation + message counts, top questions, no-answer rate
-- `nuxt-app/server/api/chat/stream.post.ts` — SSE: widget_key auth → embed → pgvector search → Claude Sonnet stream → persist
+- `nuxt-app/server/utils/chat.ts` — shared chat utils: `rateLimitByKey`, `resolveMerchant`, `buildChatContext`
+- `nuxt-app/server/api/chat/stream.post.ts` — SSE: widget_key auth (header or body) → embed → pgvector search → Claude Sonnet stream → persist; refactored to use shared utils
+- `nuxt-app/server/api/chat/message.post.ts` — non-streaming JSON endpoint: same auth/RAG pipeline, returns `{ text, sources, message_id, session_id, conversation_id }`
 - `nuxt-app/server/api/chat/history/[sessionId].get.ts` — fetch conversation + messages for dashboard
-- `nuxt-app/app/types/api.ts` — added ChatHistoryResponse
+- `nuxt-app/app/types/api.ts` — added ChatHistoryResponse, ChatMessageRequest, ChatMessageResponse
 
 ### What exists (Phase 1.3 + 1.5 frontend — Dashboard wiring)
 

@@ -164,6 +164,20 @@ export interface ChatStreamRequest {
   widget_key: string
 }
 
+export interface ChatMessageRequest {
+  message: string
+  session_id?: string
+  widget_key?: string
+}
+
+export interface ChatMessageResponse {
+  text: string
+  sources: Array<{ id: string, content: string, similarity: number }>
+  message_id: string
+  session_id: string
+  conversation_id: string
+}
+
 // SSE event shapes (sent as JSON in the `data` field)
 export interface ChatChunkEvent {
   text: string

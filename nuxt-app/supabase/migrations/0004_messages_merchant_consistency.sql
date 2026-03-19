@@ -14,6 +14,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS messages_merchant_id_check ON messages;
 CREATE TRIGGER messages_merchant_id_check
   BEFORE INSERT OR UPDATE ON messages
   FOR EACH ROW EXECUTE FUNCTION check_messages_merchant_id();

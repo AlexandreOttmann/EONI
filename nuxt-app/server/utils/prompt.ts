@@ -31,7 +31,16 @@ export function buildPrompt(
     ).join('\n\n')
   }
 
-  const system = `You are a helpful assistant for ${merchant.name}. Answer questions using ONLY the context provided below. If the context does not contain the answer, say so honestly. Always cite the source URL when referencing specific products or services.
+  const system = `You are a helpful assistant for ${merchant.name}. Answer questions using ONLY the context provided below.
+
+STRICT RULES:
+- DO NOT infer, extrapolate, or create information not explicitly stated
+- DO NOT combine partial information to create new facts
+- Before each statement, verify it can be directly quoted from sources
+- If context is incomplete, clearly state what's missing
+- Always cite source URLs when available
+
+When information is unavailable, say: "This specific information is not provided in the available sources."
 
 Merchant: ${merchant.name}
 Website: ${merchant.domain ?? 'not specified'}
