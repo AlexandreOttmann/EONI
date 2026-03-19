@@ -1,8 +1,7 @@
 import { z } from 'zod'
 import { serverSupabaseUser, serverSupabaseServiceRole } from '#supabase/server'
 import type { StartCrawlResponse } from '~/types/api'
-import { chunkMarkdown } from '../../utils/chunker'
-import { embedTexts } from '../../utils/embedder'
+import { resumeFromCfJob } from '../../utils/crawl-worker'
 
 const bodySchema = z.object({
   url: z.string().url()
@@ -13,10 +12,10 @@ async function processJob(
   url: string,
   merchantId: string,
   merchantName: string,
-  config: { cloudflareAccountId: string; cloudflareCrawlApiToken: string; openaiApiKey: string }
+  config: { cloudflareAccountId: string, cloudflareCrawlApiToken: string, openaiApiKey: string }
 ) {
-  const runtimeConfig = useRuntimeConfig()
   const { createClient } = await import('@supabase/supabase-js')
+  const runtimeConfig = useRuntimeConfig()
   const client = createClient(
     runtimeConfig.supabaseUrl as string,
     runtimeConfig.supabaseServiceRoleKey as string
@@ -28,81 +27,37 @@ async function processJob(
       .update({ status: 'running', started_at: new Date().toISOString() })
       .eq('id', jobId)
 
-    const cfRes = await $fetch<{
-      success: boolean
-      result: { pages: Array<{ url: string; title: string; markdown: string }> }
-    }>(
+    const cfSubmit = await $fetch<{ success: boolean, result: string }>(
       `https://api.cloudflare.com/client/v4/accounts/${config.cloudflareAccountId}/browser-rendering/crawl`,
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${config.cloudflareCrawlApiToken}`,
+          'Authorization': `Bearer ${config.cloudflareCrawlApiToken}`,
           'Content-Type': 'application/json'
         },
         body: { url }
       }
     )
 
-    if (!cfRes.success) throw new Error('Cloudflare crawl failed')
+    if (!cfSubmit.success) throw new Error('Cloudflare crawl submission failed')
 
-    const pages = cfRes.result.pages
-    await client.from('crawl_jobs').update({ pages_found: pages.length }).eq('id', jobId)
+    const cfJobId = cfSubmit.result
 
-    for (const page of pages) {
-      const { data: pageRow } = await client
-        .from('pages')
-        .insert({
-          merchant_id: merchantId,
-          crawl_job_id: jobId,
-          url: page.url,
-          title: page.title,
-          markdown: page.markdown
-        })
-        .select('id')
-        .single()
+    // Persist before polling — enables restart recovery
+    await client.from('crawl_jobs').update({ cf_job_id: cfJobId }).eq('id', jobId)
 
-      if (!pageRow) continue
-
-      const rawChunks = chunkMarkdown(page.markdown ?? '', page.url, page.title ?? '', merchantName)
-      if (rawChunks.length === 0) continue
-
-      const embeddings = await embedTexts(rawChunks.map(c => c.content), config.openaiApiKey)
-
-      const chunkRows = rawChunks.map((c, i) => ({
-        merchant_id: merchantId,
-        page_id: pageRow.id,
-        content: c.content,
-        embedding: embeddings[i],
-        metadata: c.metadata,
-        token_count: c.tokenCount
-      }))
-
-      await client.from('chunks').insert(chunkRows)
-
-      // Fetch current counters then increment atomically
-      const { data: currentJob } = await client
-        .from('crawl_jobs')
-        .select('pages_crawled, chunks_created')
-        .eq('id', jobId)
-        .single()
-
-      if (currentJob) {
-        await client
-          .from('crawl_jobs')
-          .update({
-            pages_crawled: currentJob.pages_crawled + 1,
-            chunks_created: currentJob.chunks_created + rawChunks.length
-          })
-          .eq('id', jobId)
-      }
-    }
-
-    await client
-      .from('crawl_jobs')
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', jobId)
-  }
-  catch (err) {
+    await resumeFromCfJob(
+      {
+        jobId,
+        merchantId,
+        merchantName,
+        ...config,
+        supabaseUrl: runtimeConfig.supabaseUrl as string,
+        supabaseServiceRoleKey: runtimeConfig.supabaseServiceRoleKey as string
+      },
+      cfJobId
+    )
+  } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     await client
       .from('crawl_jobs')

@@ -6,7 +6,9 @@ export default defineEventHandler(async (event): Promise<CrawlStatusResponse> =>
   const user = await serverSupabaseUser(event)
   if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
 
-  const jobId = z.string().uuid().parse(getRouterParam(event, 'jobId'))
+  const parsed = z.string().uuid().safeParse(getRouterParam(event, 'jobId'))
+  if (!parsed.success) throw createError({ statusCode: 400, message: 'Invalid job ID' })
+  const jobId = parsed.data
 
   const client = await serverSupabaseServiceRole(event)
   const { data, error } = await client

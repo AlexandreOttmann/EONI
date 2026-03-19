@@ -53,6 +53,7 @@ export interface Database {
           started_at: string | null
           completed_at: string | null
           created_at: string
+          cf_job_id: string | null
         }
         Insert: {
           id?: string
@@ -66,6 +67,7 @@ export interface Database {
           started_at?: string | null
           completed_at?: string | null
           created_at?: string
+          cf_job_id?: string | null
         }
         Update: {
           id?: string
@@ -79,6 +81,7 @@ export interface Database {
           started_at?: string | null
           completed_at?: string | null
           created_at?: string
+          cf_job_id?: string | null
         }
         Relationships: [
           {
