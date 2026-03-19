@@ -1,6 +1,6 @@
 # Ecommerce AI SaaS — Build Status
 
-Last updated: 2026-03-18
+Last updated: 2026-03-19
 
 > **New agent?** Read this file first. Then read the files listed under
 > "Required Context" for your specific task. Do NOT redo completed work.
@@ -202,6 +202,18 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 - `nuxt-app/server/api/crawl/start.post.ts` — refactored `processJob()` to persist `cf_job_id` before polling, delegates to `resumeFromCfJob`; stale-job expiry block removed (handled by plugin)
 - `nuxt-app/server/plugins/crawl-recovery.ts` — Nitro plugin: on server start, resumes recoverable jobs (running + cf_job_id set) and marks unrecoverable jobs failed (running + no cf_job_id)
 
+### What exists (Anti-hallucination RAG refactor — Part A: Structured extraction at crawl time)
+
+- `nuxt-app/supabase/migrations/0008_products_table.sql` — `products` table with merchant_id, page_id, crawl_job_id, name, description, price, currency, availability, sku, category, image_url, source_url, extra_data, extraction_confidence, missing_fields, embedding (vector 1536); ivfflat index; RLS policies; adds `products_extracted` column to `crawl_jobs`
+- `nuxt-app/supabase/migrations/0009_match_products_function.sql` — `match_products` pgvector cosine similarity RPC, null-check guard, REVOKE from PUBLIC/anon/authenticated, GRANT to service_role
+- `nuxt-app/server/utils/extraction-prompts.ts` — `EXTRACTION_PROMPT` string and `EXTRACTION_SCHEMA` JSON schema for Cloudflare `jsonOptions`
+- `nuxt-app/server/utils/crawl-worker.ts` — updated: `CfRecord` now uses `markdown?/json?` instead of `html`; removed `htmlToText()`; `CfPage` extended with `items: Array<Record<string, unknown>>`; `processPages` adds product extraction loop (confidence scoring, missing-fields tracking, embedding + insert, `products_extracted` counter increment)
+- `nuxt-app/server/api/crawl/start.post.ts` — updated: CF request body now sends `formats: ["markdown","json"]`, `rejectResourceTypes`, and `jsonOptions` with extraction prompt + schema
+- `nuxt-app/app/types/api.ts` — added `Product` interface; `CrawlJob` now includes `products_extracted: number`
+- `nuxt-app/app/types/database.types.ts` — added `products` Row/Insert/Update; `crawl_jobs` updated with `products_extracted`; `match_products` added to Functions
+
+Branch: `feat/anti-hallucination-rag`
+
 ### What exists (Phase 1.2 + 1.3 backend — Crawl Pipeline + RAG Chat)
 
 - `nuxt-app/supabase/migrations/0005_conversations_unique_constraint.sql` — UNIQUE(merchant_id, session_id) on conversations
@@ -266,6 +278,7 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 |--------|-------|-------|
 | main | stable | — |
 | feat/dashboard-wiring | ready for review | frontend |
+| feat/anti-hallucination-rag | Part A complete | backend |
 
 ---
 

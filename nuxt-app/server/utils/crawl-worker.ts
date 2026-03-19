@@ -22,7 +22,8 @@ type CfRecord = {
     status?: number
     [key: string]: unknown
   }
-  html: string
+  markdown?: string
+  json?: { items?: Array<Record<string, unknown>> }
 }
 
 type CfPollResult = {
@@ -38,7 +39,14 @@ type CfPollResult = {
 }
 
 // Normalised page shape used internally after parsing the CF response
-type CfPage = { url: string, title: string, text: string }
+type CfPage = {
+  url: string
+  title: string
+  text: string
+  items: Array<Record<string, unknown>>
+}
+
+type ExtractionConfidence = 'high' | 'medium' | 'low'
 
 const POLL_INTERVAL_MS = 20_000
 const POLL_TIMEOUT_MS = 10 * 60 * 1_000
@@ -65,22 +73,6 @@ async function deleteCfJob(config: WorkerConfig, cfJobId: string): Promise<void>
   } catch {
     // Best-effort cleanup
   }
-}
-
-/** Strip HTML tags + common entities to plain text for chunking */
-function htmlToText(html: string): string {
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, '\'')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 export async function resumeFromCfJob(config: WorkerConfig, cfJobId: string): Promise<void> {
@@ -131,7 +123,8 @@ export async function resumeFromCfJob(config: WorkerConfig, cfJobId: string): Pr
           .map(r => ({
             url: r.url,
             title: r.metadata?.title ?? '',
-            text: htmlToText(r.html ?? '')
+            text: r.markdown ?? '',
+            items: r.json?.items ?? []
           }))
         break
       }
@@ -159,6 +152,51 @@ export async function resumeFromCfJob(config: WorkerConfig, cfJobId: string): Pr
       .update({ status: 'failed', error: message, completed_at: new Date().toISOString() })
       .eq('id', config.jobId)
   }
+}
+
+function determineExtractionConfidence(
+  item: Record<string, unknown>
+): ExtractionConfidence {
+  const hasName = typeof item.name === 'string' && item.name.length > 0
+  const hasDescription = typeof item.description === 'string' && item.description.length > 0
+  const hasPrice = typeof item.price === 'number'
+
+  if (!hasName) return 'low'
+
+  const missingCount = [
+    !hasDescription,
+    !hasPrice,
+    !item.currency,
+    !item.availability,
+    !item.category
+  ].filter(Boolean).length
+
+  if (hasName && hasDescription && hasPrice) return 'high'
+  if (missingCount >= 2) return 'low'
+  return 'medium'
+}
+
+function getMissingFields(item: Record<string, unknown>): string[] {
+  const fields: Array<keyof typeof item> = ['description', 'price', 'currency', 'availability', 'category']
+  return fields.filter(f => item[f] === null || item[f] === undefined || item[f] === '')
+}
+
+function buildProductEmbeddingText(item: Record<string, unknown>, sourceUrl: string): string {
+  const name = typeof item.name === 'string' ? item.name : ''
+  const description = typeof item.description === 'string' ? item.description : 'N/A'
+  const price = typeof item.price === 'number' ? String(item.price) : 'N/A'
+  const currency = typeof item.currency === 'string' ? item.currency : ''
+  const availability = typeof item.availability === 'string' ? item.availability : 'unknown'
+  const category = typeof item.category === 'string' ? item.category : 'N/A'
+
+  return [
+    `Product: ${name}`,
+    `Description: ${description}`,
+    `Price: ${price}${currency ? ' ' + currency : ''}`,
+    `Availability: ${availability}`,
+    `Category: ${category}`,
+    `Source: ${sourceUrl}`
+  ].join('\n')
 }
 
 export async function processPages(
@@ -211,7 +249,7 @@ export async function processPages(
     // Fetch current counters then increment
     const { data: currentJob } = await client
       .from('crawl_jobs')
-      .select('pages_crawled, chunks_created')
+      .select('pages_crawled, chunks_created, products_extracted')
       .eq('id', config.jobId)
       .single()
 
@@ -223,6 +261,61 @@ export async function processPages(
           chunks_created: (currentJob.chunks_created ?? 0) + rawChunks.length
         })
         .eq('id', config.jobId)
+    }
+
+    // ── Product extraction ────────────────────────────────────────
+    const validItems = (page.items ?? []).filter(
+      item => typeof item.name === 'string' && item.name.trim().length > 0
+    )
+
+    if (validItems.length > 0) {
+      const productTexts = validItems.map(item =>
+        buildProductEmbeddingText(item, page.url)
+      )
+
+      const productEmbeddings = await embedTexts(productTexts, config.openaiApiKey)
+
+      const productRows = validItems.map((item, i) => {
+        const confidence: ExtractionConfidence = determineExtractionConfidence(item)
+        const missingFields = getMissingFields(item)
+
+        return {
+          merchant_id: config.merchantId,
+          page_id: pageRow.id,
+          crawl_job_id: config.jobId,
+          name: item.name as string,
+          description: typeof item.description === 'string' ? item.description : null,
+          price: typeof item.price === 'number' ? item.price : null,
+          currency: typeof item.currency === 'string' ? item.currency : 'EUR',
+          availability: typeof item.availability === 'string' ? item.availability : 'unknown',
+          sku: typeof item.sku === 'string' ? item.sku : null,
+          category: typeof item.category === 'string' ? item.category : null,
+          image_url: typeof item.image_url === 'string' ? item.image_url : null,
+          source_url: page.url,
+          extra_data: {} as Json,
+          extraction_confidence: confidence,
+          missing_fields: missingFields,
+          embedding: productEmbeddings[i] as unknown as string
+        }
+      })
+
+      await client.from('products').insert(productRows)
+
+      // Increment products_extracted counter
+      const { data: jobAfterChunks } = await client
+        .from('crawl_jobs')
+        .select('products_extracted')
+        .eq('id', config.jobId)
+        .single()
+
+      if (jobAfterChunks) {
+        await client
+          .from('crawl_jobs')
+          .update({
+            products_extracted: (jobAfterChunks.products_extracted ?? 0) + validItems.length
+          })
+          .eq('id', config.jobId)
+      }
     }
   }
 

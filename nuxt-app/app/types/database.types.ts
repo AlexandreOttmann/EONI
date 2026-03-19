@@ -49,6 +49,7 @@ export interface Database {
           pages_found: number
           pages_crawled: number
           chunks_created: number
+          products_extracted: number
           error: string | null
           started_at: string | null
           completed_at: string | null
@@ -63,6 +64,7 @@ export interface Database {
           pages_found?: number
           pages_crawled?: number
           chunks_created?: number
+          products_extracted?: number
           error?: string | null
           started_at?: string | null
           completed_at?: string | null
@@ -77,6 +79,7 @@ export interface Database {
           pages_found?: number
           pages_crawled?: number
           chunks_created?: number
+          products_extracted?: number
           error?: string | null
           started_at?: string | null
           completed_at?: string | null
@@ -177,6 +180,91 @@ export interface Database {
             foreignKeyName: 'chunks_page_id_fkey'
             columns: ['page_id']
             referencedRelation: 'pages'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      products: {
+        Row: {
+          id: string
+          merchant_id: string
+          page_id: string | null
+          crawl_job_id: string
+          name: string
+          description: string | null
+          price: number | null
+          currency: string
+          availability: string
+          sku: string | null
+          category: string | null
+          image_url: string | null
+          source_url: string
+          extra_data: Json
+          extraction_confidence: string
+          missing_fields: string[]
+          embedding: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          merchant_id: string
+          page_id?: string | null
+          crawl_job_id: string
+          name: string
+          description?: string | null
+          price?: number | null
+          currency?: string
+          availability?: string
+          sku?: string | null
+          category?: string | null
+          image_url?: string | null
+          source_url: string
+          extra_data?: Json
+          extraction_confidence?: string
+          missing_fields?: string[]
+          embedding?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          merchant_id?: string
+          page_id?: string | null
+          crawl_job_id?: string
+          name?: string
+          description?: string | null
+          price?: number | null
+          currency?: string
+          availability?: string
+          sku?: string | null
+          category?: string | null
+          image_url?: string | null
+          source_url?: string
+          extra_data?: Json
+          extraction_confidence?: string
+          missing_fields?: string[]
+          embedding?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'products_merchant_id_fkey'
+            columns: ['merchant_id']
+            referencedRelation: 'merchants'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'products_page_id_fkey'
+            columns: ['page_id']
+            referencedRelation: 'pages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'products_crawl_job_id_fkey'
+            columns: ['crawl_job_id']
+            referencedRelation: 'crawl_jobs'
             referencedColumns: ['id']
           }
         ]
@@ -306,6 +394,26 @@ export interface Database {
           id: string
           content: string
           metadata: Json
+          similarity: number
+        }>
+      }
+      match_products: {
+        Args: {
+          query_embedding: string
+          match_threshold: number
+          match_count: number
+          p_merchant_id: string
+        }
+        Returns: Array<{
+          id: string
+          name: string
+          description: string | null
+          price: number | null
+          currency: string
+          availability: string
+          category: string | null
+          source_url: string
+          image_url: string | null
           similarity: number
         }>
       }
