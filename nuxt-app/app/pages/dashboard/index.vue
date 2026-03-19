@@ -1,115 +1,49 @@
 <script setup lang="ts">
-import type { CrawlJob, Conversation } from '~/types/api'
+import type { AnalyticsResponse } from '~/types/api'
 
-definePageMeta({
-  layout: 'dashboard',
-  middleware: 'auth'
-})
-
-useHead({
-  title: 'Overview'
-})
+definePageMeta({ layout: 'dashboard', middleware: 'auth' })
+useHead({ title: 'Overview' })
 
 interface StatCard {
   label: string
   value: number
   icon: string
-  delta: string | null
-  deltaPositive: boolean
-  sparkline: string | null
 }
 
-// TODO: Replace with real API calls via useFetch('/api/merchant/stats')
-const isLoading = ref(true)
+const { isLoading: configLoading } = useMerchantConfig()
+const { jobHistory, loadHistory } = useCrawl()
+const { data: analytics, status: analyticsStatus } = useFetch<AnalyticsResponse>('/api/merchant/analytics')
 
-const stats = ref<StatCard[]>([
-  {
-    label: 'Pages crawled',
-    value: 1204,
-    icon: 'i-heroicons-document-text',
-    delta: '+12%',
-    deltaPositive: true,
-    sparkline: '0,12 8,10 16,14 24,6 32,8 40,4 48,2'
-  },
-  {
-    label: 'Chunks indexed',
-    value: 8432,
-    icon: 'i-heroicons-cube',
-    delta: '+8%',
-    deltaPositive: true,
-    sparkline: '0,14 8,12 16,10 24,8 32,6 40,4 48,3'
-  },
-  {
-    label: 'Conversations',
-    value: 342,
-    icon: 'i-heroicons-chat-bubble-left-right',
-    delta: '+24%',
-    deltaPositive: true,
-    sparkline: '0,14 8,12 16,8 24,10 32,4 40,6 48,2'
-  },
-  {
-    label: 'Status',
-    value: 1,
-    icon: 'i-heroicons-signal',
-    delta: null,
-    deltaPositive: true,
-    sparkline: null
-  }
-])
+const isLoading = computed(() => configLoading.value || analyticsStatus.value === 'pending')
 
-// Animated count-up values
-const animatedValues = stats.value.map((stat) => {
-  const target = ref(stat.value)
-  return useCountUp(target)
+onMounted(() => {
+  loadHistory()
 })
 
-// TODO: Replace with real data from useFetch('/api/crawl/jobs')
-const recentCrawls = ref<CrawlJob[]>([
-  {
-    id: '1',
-    merchant_id: 'm1',
-    url: 'https://example-store.com',
-    status: 'completed',
-    pages_found: 120,
-    pages_crawled: 120,
-    chunks_created: 842,
-    error: null,
-    started_at: '2026-03-16T10:00:00Z',
-    completed_at: '2026-03-16T10:15:00Z',
-    created_at: '2026-03-16T10:00:00Z'
-  },
-  {
-    id: '2',
-    merchant_id: 'm1',
-    url: 'https://another-shop.com',
-    status: 'running',
-    pages_found: 85,
-    pages_crawled: 42,
-    chunks_created: 294,
-    error: null,
-    started_at: '2026-03-17T08:30:00Z',
-    completed_at: null,
-    created_at: '2026-03-17T08:30:00Z'
-  }
+const pagesCrawled = computed(() =>
+  jobHistory.value.filter(j => j.status === 'completed').reduce((sum, j) => sum + j.pages_crawled, 0)
+)
+const chunksIndexed = computed(() =>
+  jobHistory.value.filter(j => j.status === 'completed').reduce((sum, j) => sum + j.chunks_created, 0)
+)
+const conversations = computed(() => analytics.value?.total_conversations ?? 0)
+const isLive = computed(() => jobHistory.value.some(j => j.status === 'completed'))
+
+const stats = computed<StatCard[]>(() => [
+  { label: 'Pages crawled', value: pagesCrawled.value, icon: 'i-heroicons-document-text' },
+  { label: 'Chunks indexed', value: chunksIndexed.value, icon: 'i-heroicons-cube' },
+  { label: 'Conversations', value: conversations.value, icon: 'i-heroicons-chat-bubble-left-right' },
+  { label: 'Status', value: isLive.value ? 1 : 0, icon: 'i-heroicons-signal' }
 ])
 
-// TODO: Replace with real data from useFetch('/api/conversations')
-const recentConversations = ref<Conversation[]>([
-  {
-    id: 'c1',
-    merchant_id: 'm1',
-    session_id: 's1',
-    source: 'widget',
-    created_at: '2026-03-17T09:15:00Z'
-  },
-  {
-    id: 'c2',
-    merchant_id: 'm1',
-    session_id: 's2',
-    source: 'dashboard_preview',
-    created_at: '2026-03-17T08:45:00Z'
-  }
-])
+const countUp0 = useCountUp(computed(() => stats.value[0]?.value ?? 0))
+const countUp1 = useCountUp(computed(() => stats.value[1]?.value ?? 0))
+const countUp2 = useCountUp(computed(() => stats.value[2]?.value ?? 0))
+const animatedValues = computed(() => [countUp0, countUp1, countUp2])
+
+const recentCrawls = computed(() => jobHistory.value.slice(0, 5))
+const topQuestions = computed(() => analytics.value?.top_questions ?? [])
+const hasData = computed(() => jobHistory.value.length > 0)
 
 const crawlColumns = [
   { accessorKey: 'url', header: 'URL' },
@@ -118,13 +52,10 @@ const crawlColumns = [
   { accessorKey: 'started_at', header: 'Started' }
 ]
 
-const conversationColumns = [
-  { accessorKey: 'session_id', header: 'Session' },
-  { accessorKey: 'source', header: 'Source' },
-  { accessorKey: 'created_at', header: 'Created' }
+const topQuestionsColumns = [
+  { accessorKey: 'content', header: 'Question' },
+  { accessorKey: 'count', header: 'Count' }
 ]
-
-const hasData = computed(() => recentCrawls.value.length > 0)
 
 function onMouseMove(event: MouseEvent, cardEl: EventTarget | null) {
   const el = cardEl as HTMLElement | null
@@ -135,12 +66,9 @@ function onMouseMove(event: MouseEvent, cardEl: EventTarget | null) {
 }
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '--'
+  if (!dateStr) return '\u2014'
   return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   }).format(new Date(dateStr))
 }
 
@@ -153,13 +81,6 @@ function statusColor(status: string) {
   }
   return map[status] ?? 'neutral'
 }
-
-// Simulate loading
-onMounted(() => {
-  setTimeout(() => {
-    isLoading.value = false
-  }, 800)
-})
 </script>
 
 <template>
@@ -198,12 +119,6 @@ onMounted(() => {
               class="h-7 w-20 rounded bg-surface-3"
               :animate="{ opacity: [0.4, 1, 0.4] }"
               :transition="{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.2 }"
-            />
-            <motion
-              as="div"
-              class="h-3 w-12 rounded bg-surface-3"
-              :animate="{ opacity: [0.4, 1, 0.4] }"
-              :transition="{ repeat: Infinity, duration: 1.5, ease: 'easeInOut', delay: 0.3 }"
             />
           </div>
         </UCard>
@@ -262,38 +177,6 @@ onMounted(() => {
               >
                 {{ stat.label === 'Status' ? (stat.value ? 'Live' : 'Offline') : animatedValues[index]?.value ?? stat.value }}
               </p>
-
-              <!-- Delta + sparkline row -->
-              <div class="mt-2 flex items-center justify-between">
-                <span
-                  v-if="stat.delta"
-                  class="inline-flex items-center gap-1 text-xs font-mono tabular-nums"
-                  :class="stat.deltaPositive ? 'text-success' : 'text-error'"
-                >
-                  <UIcon
-                    :name="stat.deltaPositive ? 'i-heroicons-arrow-trending-up' : 'i-heroicons-arrow-trending-down'"
-                    class="w-3 h-3"
-                    aria-hidden="true"
-                  />
-                  {{ stat.delta }}
-                </span>
-                <!-- Mini sparkline -->
-                <svg
-                  v-if="stat.sparkline"
-                  class="w-12 h-4 text-accent-violet/40"
-                  viewBox="0 0 48 16"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <polyline
-                    :points="stat.sparkline"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </div>
             </div>
           </UCard>
         </motion>
@@ -334,29 +217,27 @@ onMounted(() => {
         <UCard>
           <template #header>
             <h2 class="text-sm font-medium text-text-base">
-              Recent Conversations
+              Top Questions
             </h2>
           </template>
           <UTable
-            :data="recentConversations"
-            :columns="conversationColumns"
+            v-if="topQuestions.length > 0"
+            :data="topQuestions"
+            :columns="topQuestionsColumns"
           >
-            <template #session_id-cell="{ row }">
-              <span class="text-sm font-mono text-text-muted">{{ row.original.session_id.slice(0, 8) }}</span>
+            <template #content-cell="{ row }">
+              <span class="text-sm text-text-base">{{ row.original.content }}</span>
             </template>
-            <template #source-cell="{ row }">
-              <UBadge
-                variant="subtle"
-                size="xs"
-                color="neutral"
-              >
-                {{ row.original.source }}
-              </UBadge>
-            </template>
-            <template #created_at-cell="{ row }">
-              <span class="text-text-muted text-xs">{{ formatDate(row.original.created_at) }}</span>
+            <template #count-cell="{ row }">
+              <span class="tabular-nums text-sm">{{ row.original.count }}</span>
             </template>
           </UTable>
+          <div
+            v-else
+            class="py-8 text-center text-sm text-text-muted"
+          >
+            No questions recorded yet.
+          </div>
         </UCard>
       </div>
     </template>

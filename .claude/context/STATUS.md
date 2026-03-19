@@ -51,7 +51,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Prompt assembly (system + merchant context + chunks + history) | main | ✅ server/utils/prompt.ts | backend |
 | Claude Sonnet streaming via Anthropic SDK | main | ✅ | backend |
 | Conversation persistence to Supabase | main | ✅ | backend |
-| useChat composable (SSE client) | — | ⬜ | frontend |
+| useChat composable (SSE client) | feat/dashboard-wiring | ✅ | frontend |
 
 ### 1.4 Widget
 
@@ -60,7 +60,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Widget Vite build setup (standalone, <=30kb) | — | ⬜ | frontend |
 | Shadow DOM container | — | ⬜ | frontend |
 | SSE chat in widget | — | ⬜ | frontend |
-| Widget config dashboard page (color, message, position) | main | ✅ UI shell (mock data) | frontend |
+| Widget config dashboard page (color, message, position) | feat/dashboard-wiring | ✅ wired to real API | frontend |
 | Widget `<script>` tag generation | — | ⬜ | backend |
 | GDPR cookie consent in widget | — | ⬜ | security |
 
@@ -68,9 +68,11 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 | Task | Branch | Status | Agent |
 |------|--------|--------|-------|
-| Onboarding flow (URL input -> crawl -> go live) | main | ✅ UI shell (mock data) | frontend |
-| Analytics page (conversations, top questions, no-answer rate) | main | ✅ UI shell (mock data) | frontend |
-| Settings page (merchant profile, API keys) | main | ✅ UI shell (mock data) | frontend |
+| Onboarding flow (URL input -> crawl -> go live) | main | ✅ wired to real API | frontend |
+| Analytics page (conversations, top questions, no-answer rate) | feat/dashboard-wiring | ✅ wired to real API | frontend |
+| Settings page (merchant profile, API keys) | feat/dashboard-wiring | ✅ wired to real API | frontend |
+| Chat preview page (SSE streaming, sources panel) | feat/dashboard-wiring | ✅ | frontend |
+| Dashboard overview wired to real data | feat/dashboard-wiring | ✅ | frontend |
 
 ---
 
@@ -216,6 +218,16 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 - `nuxt-app/server/api/chat/history/[sessionId].get.ts` — fetch conversation + messages for dashboard
 - `nuxt-app/app/types/api.ts` — added ChatHistoryResponse
 
+### What exists (Phase 1.3 + 1.5 frontend — Dashboard wiring)
+
+- `nuxt-app/app/composables/useMerchantConfig.ts` — `useMerchantConfig()` composable: `useFetch('/api/merchant/config')` + `updateConfig()` via `$fetch PATCH`, instant UI update, toast notifications
+- `nuxt-app/app/composables/useChat.ts` — `useChat()` composable: POST-based SSE via `fetch()` + `ReadableStream`, SSE parser, AbortController cleanup, sources tracking
+- `nuxt-app/app/pages/dashboard/chat.vue` — Chat preview page: message list, streaming cursor, input bar, collapsible sources sidebar, auto-scroll
+- `nuxt-app/app/pages/dashboard/settings.vue` — wired to `useMerchantConfig()` + `useSupabaseUser()`, all mock data removed
+- `nuxt-app/app/pages/dashboard/widget.vue` — wired to `useMerchantConfig()`, real widget_key, all mock data removed
+- `nuxt-app/app/pages/dashboard/analytics.vue` — wired to `useFetch('/api/merchant/analytics')`, all mock data removed
+- `nuxt-app/app/pages/dashboard/index.vue` — wired to `useMerchantConfig()` + `useCrawl()` + analytics API, stats derived from real data, "Top Questions" replaces "Recent Conversations"
+
 ---
 
 ## Up Next
@@ -226,7 +238,7 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 4. ~~**backend-developer** -> POST /api/crawl/start + crawl status endpoints (Phase 1.2)~~ ✅ done
 5. ~~**backend-developer** -> POST /api/chat/stream SSE endpoint (Phase 1.3)~~ ✅ done
 6. ~~**frontend-developer** -> Wire crawl page to real API endpoints~~ ✅ done — `useCrawl.ts` composable + `crawl.vue` wired
-7. **frontend-developer** -> Wire remaining dashboard pages to real API endpoints (chat, merchant config, analytics)
+7. ~~**frontend-developer** -> Wire remaining dashboard pages to real API endpoints (chat, merchant config, analytics)~~ ✅ done — all pages wired, useChat + useMerchantConfig composables, chat.vue page
 
 ---
 
@@ -251,6 +263,7 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 | Branch | State | Agent |
 |--------|-------|-------|
 | main | stable | — |
+| feat/dashboard-wiring | ready for review | frontend |
 
 ---
 
