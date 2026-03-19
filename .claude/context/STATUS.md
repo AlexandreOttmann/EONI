@@ -1,6 +1,6 @@
 # Ecommerce AI SaaS — Build Status
 
-Last updated: 2026-03-17
+Last updated: 2026-03-18
 
 > **New agent?** Read this file first. Then read the files listed under
 > "Required Context" for your specific task. Do NOT redo completed work.
@@ -27,7 +27,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 |------|--------|--------|-------|
 | Supabase schema (merchants, pages, chunks, conversations, messages, crawl_jobs) | main | ✅ | backend |
 | RLS policies (merchant_id isolation on all tables) | main | ✅ pending security review | backend -> security |
-| Auth flow (email + Google OAuth via Supabase) | main | ✅ server routes done | backend -> frontend |
+| Auth flow (email + Google OAuth via Supabase) | main | ✅ fully working (client-side login, JWT sub fix) | backend -> frontend |
 | Dashboard layout (sidebar, header, auth guard) | main | ✅ implemented | ui-ux -> frontend |
 | Design system tokens (Tailwind v4 @theme, Nuxt UI app.config) | main | ✅ spec done | ui-ux |
 | Auth UI (login, signup, auth layout) | main | ✅ implemented | frontend |
@@ -40,7 +40,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Crawl status polling + Supabase Realtime subscription | main | ✅ GET /api/crawl/status/[jobId] + GET /api/crawl/jobs | backend |
 | Content chunking (500 tokens, 1 chunk = 1 product) | main | ✅ server/utils/chunker.ts | backend |
 | OpenAI embedding generation + pgvector storage | main | ✅ server/utils/embedder.ts | backend |
-| Dashboard crawl page (progress UI) | — | ⬜ | ui-ux -> frontend |
+| Dashboard crawl page (progress UI) | main | ✅ wired to real API (useCrawl composable) | frontend |
 
 ### 1.3 RAG Chat
 
@@ -163,17 +163,42 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 - `nuxt-app/supabase/migrations/0001_initial_schema.sql` — all 7 tables + indexes + updated_at trigger
 - `nuxt-app/supabase/migrations/0002_rls_policies.sql` — RLS enabled + SELECT/INSERT/UPDATE/DELETE policies on all tables
 - `nuxt-app/supabase/migrations/0003_match_chunks_function.sql` — pgvector cosine similarity RPC
-- `nuxt-app/server/api/auth/login.post.ts` — email+password sign in
+- `nuxt-app/server/api/auth/login.post.ts` — email+password sign in (kept for reference; login now done client-side)
 - `nuxt-app/server/api/auth/signup.post.ts` — new merchant registration (auth user + merchant row)
 - `nuxt-app/server/api/auth/callback.get.ts` — OAuth code exchange → redirect /dashboard
-- `nuxt-app/server/api/auth/me.get.ts` — current merchant profile
-- `nuxt-app/server/api/auth/logout.post.ts` — sign out
+- `nuxt-app/server/api/auth/me.get.ts` — current merchant profile (auto-provisions merchant row on first login)
+- `nuxt-app/server/api/auth/logout.post.ts` — sign out (kept; logout now done client-side via useSupabaseClient)
 - `nuxt-app/app/types/api.ts` — all API types (Merchant, CrawlJob, Page, Chunk, Conversation, Message, request/response types)
 - `nuxt-app/app/types/database.types.ts` — Supabase DB type stub (replace with `supabase gen types` after project creation)
+
+### What exists (Phase 1.1 frontend — Pinia store + middleware)
+
+- `nuxt-app/app/stores/auth.ts` — Pinia auth store (useAuthStore): merchant state, fetchMerchant, logout, displayName, avatarUrl
+- `nuxt-app/app/middleware/auth.ts` — route middleware protecting all /dashboard/* pages
+
+### Auth architecture notes (@nuxtjs/supabase v2)
+
+- `serverSupabaseUser(event)` returns `JwtPayload` (not `User`) — user UUID is `user.sub`, not `user.id`
+- Login must be done client-side via `useSupabaseClient().auth.signInWithPassword()` for session to be managed by the module
+- Logout must be done client-side via `useSupabaseClient().auth.signOut()` to flush reactive `useSupabaseUser()` state
 
 ### Security audit (Phase 1.2 + 1.3)
 
 ✅ Security audit complete — S1 rate limiting, S2 env refactor, S3 logging fixed
+✅ Crawl endpoint API contract audit complete — all three routes verified (start, jobs, status). UUID validation bug fixed in status/[jobId].get.ts (safeParse + createError 400). Crawl API endpoints are frontend-ready.
+
+### What exists (Phase 1.2 frontend — Crawl wiring)
+
+- `nuxt-app/app/composables/useCrawl.ts` — `useCrawl()` composable: polls `GET /api/crawl/status/:jobId` every 3s, loads history from `GET /api/crawl/jobs`, triggers `POST /api/crawl/start`; auto-clears polling on unmount
+- `nuxt-app/app/pages/dashboard/crawl.vue` — wired to real API via `useCrawl()`; removed all mock data; `loadHistory` called on mount to resume any in-progress job
+
+### What exists (Phase 1.2 backend — Crawl restart recovery)
+
+- `nuxt-app/supabase/migrations/0006_cf_job_id.sql` — adds `cf_job_id text` column to `crawl_jobs`
+- `nuxt-app/app/types/database.types.ts` — `crawl_jobs` Row/Insert/Update updated with `cf_job_id`
+- `nuxt-app/server/utils/crawl-worker.ts` — exports `resumeFromCfJob` (polls CF until complete) and `processPages` (idempotent page + chunk + embedding insert); used by both start route and recovery plugin
+- `nuxt-app/server/api/crawl/start.post.ts` — refactored `processJob()` to persist `cf_job_id` before polling, delegates to `resumeFromCfJob`; stale-job expiry block removed (handled by plugin)
+- `nuxt-app/server/plugins/crawl-recovery.ts` — Nitro plugin: on server start, resumes recoverable jobs (running + cf_job_id set) and marks unrecoverable jobs failed (running + no cf_job_id)
 
 ### What exists (Phase 1.2 + 1.3 backend — Crawl Pipeline + RAG Chat)
 
@@ -200,7 +225,8 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 3. ~~**frontend-developer** -> Implement auth UI + dashboard shell~~ ✅ done — all 14 files built, build passes
 4. ~~**backend-developer** -> POST /api/crawl/start + crawl status endpoints (Phase 1.2)~~ ✅ done
 5. ~~**backend-developer** -> POST /api/chat/stream SSE endpoint (Phase 1.3)~~ ✅ done
-6. **frontend-developer** -> Wire dashboard pages to real API endpoints (crawl, chat, merchant config, analytics)
+6. ~~**frontend-developer** -> Wire crawl page to real API endpoints~~ ✅ done — `useCrawl.ts` composable + `crawl.vue` wired
+7. **frontend-developer** -> Wire remaining dashboard pages to real API endpoints (chat, merchant config, analytics)
 
 ---
 
