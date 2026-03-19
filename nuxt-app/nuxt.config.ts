@@ -19,9 +19,9 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     anthropicApiKey: '',
-    openaiApiKey: '',
-    cloudflareAccountId: '',
-    cloudflareCrawlApiToken: '',
+    openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+    cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
+    cloudflareCrawlApiToken: process.env.CLOUDFLARE_CRAWL_API_TOKEN ?? '',
     supabaseUrl: process.env.SUPABASE_URL ?? '',
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
   },
