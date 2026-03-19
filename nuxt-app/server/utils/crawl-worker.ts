@@ -201,7 +201,7 @@ export async function processPages(
       merchant_id: config.merchantId,
       page_id: pageRow.id,
       content: c.content,
-      embedding: JSON.stringify(embeddings[i]),
+      embedding: embeddings[i] as unknown as string,
       metadata: c.metadata as Json,
       token_count: c.tokenCount
     }))
