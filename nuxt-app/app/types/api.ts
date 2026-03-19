@@ -31,9 +31,30 @@ export interface CrawlJob {
   pages_found: number
   pages_crawled: number
   chunks_created: number
+  products_extracted: number
   error: string | null
   started_at: string | null
   completed_at: string | null
+  created_at: string
+}
+
+export interface Product {
+  id: string
+  merchant_id: string
+  page_id: string | null
+  crawl_job_id: string
+  name: string
+  description: string | null
+  price: number | null
+  currency: string
+  availability: 'in_stock' | 'out_of_stock' | 'preorder' | 'unknown'
+  sku: string | null
+  category: string | null
+  image_url: string | null
+  source_url: string
+  extra_data: Record<string, unknown>
+  extraction_confidence: 'high' | 'medium' | 'low'
+  missing_fields: string[]
   created_at: string
 }
 

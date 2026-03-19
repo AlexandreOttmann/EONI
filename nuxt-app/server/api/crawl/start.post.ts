@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { serverSupabaseUser, serverSupabaseServiceRole } from '#supabase/server'
 import type { StartCrawlResponse } from '~/types/api'
 import { resumeFromCfJob } from '../../utils/crawl-worker'
+import { EXTRACTION_PROMPT, EXTRACTION_SCHEMA } from '../../utils/extraction-prompts'
 
 const bodySchema = z.object({
   url: z.string().url()
@@ -35,7 +36,15 @@ async function processJob(
           'Authorization': `Bearer ${config.cloudflareCrawlApiToken}`,
           'Content-Type': 'application/json'
         },
-        body: { url }
+        body: {
+          url,
+          formats: ['markdown', 'json'],
+          rejectResourceTypes: ['image', 'media', 'font', 'stylesheet'],
+          jsonOptions: {
+            prompt: EXTRACTION_PROMPT,
+            response_format: EXTRACTION_SCHEMA
+          }
+        }
       }
     )
 
