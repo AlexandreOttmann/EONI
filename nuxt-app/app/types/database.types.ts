@@ -50,6 +50,9 @@ export interface Database {
           pages_crawled: number
           chunks_created: number
           products_extracted: number
+          page_limit: number
+          include_patterns: string[]
+          exclude_patterns: string[]
           error: string | null
           started_at: string | null
           completed_at: string | null
@@ -65,6 +68,9 @@ export interface Database {
           pages_crawled?: number
           chunks_created?: number
           products_extracted?: number
+          page_limit?: number
+          include_patterns?: string[]
+          exclude_patterns?: string[]
           error?: string | null
           started_at?: string | null
           completed_at?: string | null
@@ -80,6 +86,9 @@ export interface Database {
           pages_crawled?: number
           chunks_created?: number
           products_extracted?: number
+          page_limit?: number
+          include_patterns?: string[]
+          exclude_patterns?: string[]
           error?: string | null
           started_at?: string | null
           completed_at?: string | null

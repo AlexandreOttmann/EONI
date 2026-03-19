@@ -7,17 +7,102 @@ useHead({
   title: 'Crawl'
 })
 
-const { activeJob: activeCrawlJob, jobHistory: crawlHistory, startCrawl, loadHistory } = useCrawl()
+const {
+  activeJob: activeCrawlJob,
+  jobHistory: crawlHistory,
+  startCrawl,
+  loadHistory,
+  // Discovery
+  sitemapGroups,
+  totalSitemapUrls,
+  ungroupedCount,
+  isDiscovering,
+  discoverSite,
+  resetDiscovery
+} = useCrawl()
 
 const crawlUrl = ref('')
 const isSubmitting = ref(false)
+const step = ref<'input' | 'configure'>('input')
+const selectedGroups = ref<Set<string>>(new Set())
+const pageLimit = ref(100)
 
-async function handleStartCrawl() {
+async function handleDiscover() {
   if (!crawlUrl.value.trim()) return
   isSubmitting.value = true
   try {
-    await startCrawl(crawlUrl.value.trim())
+    const result = await discoverSite(crawlUrl.value.trim())
+    if (result.sitemap_found && result.groups.length > 0) {
+      // Pre-select all groups
+      selectedGroups.value = new Set(result.groups.map(g => g.pattern))
+      step.value = 'configure'
+    } else {
+      // No sitemap — start crawl directly
+      await startCrawl(crawlUrl.value.trim(), { limit: pageLimit.value })
+      crawlUrl.value = ''
+    }
+  } catch {
+    // Error handled by composable toast
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+function toggleGroup(pattern: string) {
+  const next = new Set(selectedGroups.value)
+  if (next.has(pattern)) {
+    next.delete(pattern)
+  } else {
+    next.add(pattern)
+  }
+  selectedGroups.value = next
+}
+
+function toggleAll() {
+  if (selectedGroups.value.size === sitemapGroups.value.length) {
+    selectedGroups.value = new Set()
+  } else {
+    selectedGroups.value = new Set(sitemapGroups.value.map(g => g.pattern))
+  }
+}
+
+const selectedPageCount = computed(() => {
+  return sitemapGroups.value
+    .filter(g => selectedGroups.value.has(g.pattern))
+    .reduce((sum, g) => sum + g.count, 0)
+})
+
+async function handleStartCrawl() {
+  isSubmitting.value = true
+  try {
+    const includePatterns = selectedGroups.value.size > 0 && selectedGroups.value.size < sitemapGroups.value.length
+      ? Array.from(selectedGroups.value)
+      : undefined // All selected = no filter needed
+
+    await startCrawl(crawlUrl.value.trim(), {
+      limit: pageLimit.value,
+      includePatterns
+    })
     crawlUrl.value = ''
+    step.value = 'input'
+    resetDiscovery()
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+function handleBack() {
+  step.value = 'input'
+  resetDiscovery()
+}
+
+async function handleSkipAndCrawl() {
+  isSubmitting.value = true
+  try {
+    await startCrawl(crawlUrl.value.trim(), { limit: pageLimit.value })
+    crawlUrl.value = ''
+    step.value = 'input'
+    resetDiscovery()
   } finally {
     isSubmitting.value = false
   }
@@ -63,11 +148,14 @@ onMounted(loadHistory)
       Enter your store URL to crawl and index your products for AI-powered search.
     </p>
 
-    <!-- URL input row -->
-    <UCard class="mb-6">
+    <!-- Step 1: URL input -->
+    <UCard
+      v-if="step === 'input'"
+      class="mb-6"
+    >
       <form
         class="flex gap-3"
-        @submit.prevent="handleStartCrawl"
+        @submit.prevent="handleDiscover"
       >
         <label
           for="crawl-url"
@@ -81,19 +169,150 @@ onMounted(loadHistory)
           aria-label="Store URL"
           class="flex-1"
           size="md"
-          :disabled="isSubmitting"
+          :disabled="isSubmitting || isDiscovering"
         />
         <UButton
           type="submit"
-          label="Start Crawl"
-          icon="i-heroicons-arrow-path"
+          label="Analyze Site"
+          icon="i-heroicons-magnifying-glass"
           color="primary"
           size="md"
-          :loading="isSubmitting"
-          :disabled="!crawlUrl.trim() || isSubmitting"
+          :loading="isSubmitting || isDiscovering"
+          :disabled="!crawlUrl.trim() || isSubmitting || isDiscovering"
         />
       </form>
     </UCard>
+
+    <!-- Step 2: Site structure / configure -->
+    <div
+      v-if="step === 'configure'"
+      class="mb-6 space-y-4"
+    >
+      <UCard>
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-base font-display font-medium text-text-base">
+              Site Structure
+            </h2>
+            <p class="text-sm text-text-muted mt-0.5">
+              {{ totalSitemapUrls }} URLs found in sitemap. Select which sections to crawl.
+            </p>
+          </div>
+          <UButton
+            variant="ghost"
+            size="xs"
+            icon="i-heroicons-arrow-left"
+            label="Back"
+            @click="handleBack"
+          />
+        </div>
+
+        <!-- Select all toggle -->
+        <div class="flex items-center justify-between mb-3 pb-3 border-b border-border-subtle">
+          <button
+            type="button"
+            class="text-sm font-medium text-accent-violet hover:underline"
+            @click="toggleAll"
+          >
+            {{ selectedGroups.size === sitemapGroups.length ? 'Deselect All' : 'Select All' }}
+          </button>
+          <span class="text-xs text-text-muted tabular-nums">
+            {{ selectedPageCount }} pages selected
+          </span>
+        </div>
+
+        <!-- Group list -->
+        <div class="space-y-2 max-h-80 overflow-y-auto">
+          <button
+            v-for="group in sitemapGroups"
+            :key="group.pattern"
+            type="button"
+            class="w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left"
+            :class="selectedGroups.has(group.pattern)
+              ? 'border-accent-violet/40 bg-accent-violet/5'
+              : 'border-border-subtle hover:border-border-default'"
+            @click="toggleGroup(group.pattern)"
+          >
+            <div
+              class="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors"
+              :class="selectedGroups.has(group.pattern)
+                ? 'border-accent-violet bg-accent-violet'
+                : 'border-border-default'"
+            >
+              <UIcon
+                v-if="selectedGroups.has(group.pattern)"
+                name="i-heroicons-check"
+                class="w-3 h-3 text-white"
+              />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-sm text-text-base capitalize">{{ group.label }}</span>
+                <UBadge
+                  variant="subtle"
+                  color="neutral"
+                  size="xs"
+                >
+                  {{ group.count }} pages
+                </UBadge>
+              </div>
+              <p class="text-xs text-text-muted mt-0.5 font-mono truncate">
+                {{ group.pattern }}
+              </p>
+            </div>
+          </button>
+        </div>
+
+        <!-- Ungrouped info -->
+        <p
+          v-if="ungroupedCount > 0"
+          class="text-xs text-text-muted mt-3 pt-3 border-t border-border-subtle"
+        >
+          + {{ ungroupedCount }} root-level pages (homepage, about, legal, etc.)
+        </p>
+      </UCard>
+
+      <!-- Crawl options + start -->
+      <UCard>
+        <div class="flex items-end gap-4">
+          <div class="flex-1">
+            <label
+              for="page-limit"
+              class="text-sm font-medium text-text-base mb-1 block"
+            >
+              Page limit
+            </label>
+            <UInput
+              id="page-limit"
+              v-model.number="pageLimit"
+              type="number"
+              :min="1"
+              :max="500"
+              size="md"
+            />
+          </div>
+          <div class="flex gap-2">
+            <UButton
+              label="Skip & Crawl All"
+              variant="outline"
+              color="neutral"
+              size="md"
+              :loading="isSubmitting"
+              @click="handleSkipAndCrawl"
+            />
+            <UButton
+              label="Start Crawl"
+              icon="i-heroicons-arrow-path"
+              color="primary"
+              size="md"
+              :loading="isSubmitting"
+              :disabled="selectedGroups.size === 0 || isSubmitting"
+              @click="handleStartCrawl"
+            />
+          </div>
+        </div>
+      </UCard>
+    </div>
 
     <!-- Active crawl job -->
     <div

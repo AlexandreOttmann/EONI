@@ -5,14 +5,29 @@ import { resumeFromCfJob } from '../../utils/crawl-worker'
 import { EXTRACTION_PROMPT, EXTRACTION_SCHEMA } from '../../utils/extraction-prompts'
 
 const bodySchema = z.object({
-  url: z.string().url()
+  url: z.string().url(),
+  limit: z.number().int().min(1).max(500).optional().default(100),
+  includePatterns: z.array(z.string()).max(20).optional(),
+  excludePatterns: z.array(z.string()).max(20).optional()
 })
+
+interface CrawlOptions {
+  limit: number
+  includePatterns?: string[]
+  excludePatterns?: string[]
+}
+
+const DEFAULT_EXCLUDE_PATTERNS = [
+  '*/cart*', '*/checkout*', '*/account*', '*/login*',
+  '*/signup*', '*/admin*', '*/wp-admin*', '*/my-account*'
+]
 
 async function processJob(
   jobId: string,
   url: string,
   merchantId: string,
   merchantName: string,
+  crawlOptions: CrawlOptions,
   config: { cloudflareAccountId: string, cloudflareCrawlApiToken: string, openaiApiKey: string }
 ) {
   const { createClient } = await import('@supabase/supabase-js')
@@ -28,6 +43,19 @@ async function processJob(
       .update({ status: 'running', started_at: new Date().toISOString() })
       .eq('id', jobId)
 
+    // Build CF options with include/exclude patterns
+    const mergedExclude = [
+      ...DEFAULT_EXCLUDE_PATTERNS,
+      ...(crawlOptions.excludePatterns ?? [])
+    ]
+
+    const cfOptions: Record<string, unknown> = {
+      excludePatterns: mergedExclude
+    }
+    if (crawlOptions.includePatterns?.length) {
+      cfOptions.includePatterns = crawlOptions.includePatterns
+    }
+
     const cfSubmit = await $fetch<{ success: boolean, result: string }>(
       `https://api.cloudflare.com/client/v4/accounts/${config.cloudflareAccountId}/browser-rendering/crawl`,
       {
@@ -38,8 +66,10 @@ async function processJob(
         },
         body: {
           url,
+          limit: crawlOptions.limit,
           formats: ['markdown', 'json'],
           rejectResourceTypes: ['image', 'media', 'font', 'stylesheet'],
+          options: cfOptions,
           jsonOptions: {
             prompt: EXTRACTION_PROMPT,
             response_format: EXTRACTION_SCHEMA
@@ -102,7 +132,14 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
 
   const { data: job, error } = await client
     .from('crawl_jobs')
-    .insert({ merchant_id: user.sub, url: body.url, status: 'pending' })
+    .insert({
+      merchant_id: user.sub,
+      url: body.url,
+      status: 'pending',
+      page_limit: body.limit,
+      include_patterns: body.includePatterns ?? [],
+      exclude_patterns: body.excludePatterns ?? []
+    })
     .select('id')
     .single()
 
@@ -116,6 +153,11 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
     body.url,
     user.sub,
     merchant?.name ?? 'Merchant',
+    {
+      limit: body.limit,
+      includePatterns: body.includePatterns,
+      excludePatterns: body.excludePatterns
+    },
     {
       cloudflareAccountId: config.cloudflareAccountId as string,
       cloudflareCrawlApiToken: config.cloudflareCrawlApiToken as string,

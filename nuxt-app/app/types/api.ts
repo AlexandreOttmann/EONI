@@ -32,6 +32,9 @@ export interface CrawlJob {
   pages_crawled: number
   chunks_created: number
   products_extracted: number
+  page_limit: number
+  include_patterns: string[]
+  exclude_patterns: string[]
   error: string | null
   started_at: string | null
   completed_at: string | null
@@ -162,6 +165,25 @@ export interface LogoutResponse {
 
 export interface StartCrawlRequest {
   url: string
+  limit?: number
+  includePatterns?: string[]
+  excludePatterns?: string[]
+}
+
+// ─── Crawl discover types ─────────────────────────────────────
+
+export interface SitemapGroup {
+  pattern: string
+  label: string
+  count: number
+  sample_urls: string[]
+}
+
+export interface DiscoverResponse {
+  sitemap_found: boolean
+  total_urls: number
+  groups: SitemapGroup[]
+  ungrouped_count: number
 }
 
 export interface StartCrawlResponse {

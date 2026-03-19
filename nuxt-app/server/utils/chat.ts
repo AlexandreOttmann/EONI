@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { consola } from 'consola'
 import { embedTexts } from './embedder'
 
 // ─── Types ──────────────────────────────────────────────────
@@ -133,24 +134,31 @@ export async function buildChatContext(
   const queryEmbedding = embedResults[0]
   if (!queryEmbedding) throw new Error('Failed to generate query embedding')
 
-  // 1. Search products FIRST (top 3, threshold 0.65)
-  const { data: productResults } = await supabase.rpc('match_products', {
+  // 1. Search products FIRST (top 3, threshold 0.35)
+  // Note: text-embedding-3-small produces lower cosine scores than expected (~0.3-0.5 for relevant content)
+  const { data: productResults, error: productError } = await supabase.rpc('match_products', {
     query_embedding: queryEmbedding as unknown as string,
-    match_threshold: 0.65,
+    match_threshold: 0.35,
     match_count: 3,
     p_merchant_id: merchantId
   })
+  if (productError) {
+    consola.error({ tag: 'match_products', error: productError.message, code: productError.code, merchantId })
+  }
   const products: ProductResult[] = productResults ?? []
 
-  // 2. Fallback to chunks ONLY if no products found (top 5, threshold 0.65)
+  // 2. Fallback to chunks ONLY if no products found (top 5, threshold 0.35)
   let chunks: ChunkResult[] = []
   if (products.length === 0) {
-    const { data: chunkResults } = await supabase.rpc('match_chunks', {
+    const { data: chunkResults, error: chunkError } = await supabase.rpc('match_chunks', {
       query_embedding: queryEmbedding as unknown as string,
-      match_threshold: 0.65,
+      match_threshold: 0.35,
       match_count: 5,
       p_merchant_id: merchantId
     })
+    if (chunkError) {
+      consola.error({ tag: 'match_chunks', error: chunkError.message, code: chunkError.code, merchantId })
+    }
     chunks = chunkResults ?? []
   }
 

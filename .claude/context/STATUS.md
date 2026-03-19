@@ -41,6 +41,8 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Content chunking (500 tokens, 1 chunk = 1 product) | main | ✅ server/utils/chunker.ts | backend |
 | OpenAI embedding generation + pgvector storage | main | ✅ server/utils/embedder.ts | backend |
 | Dashboard crawl page (progress UI) | main | ✅ wired to real API (useCrawl composable) | frontend |
+| Sitemap discovery + URL pattern filtering | main | ✅ discover endpoint + 2-step crawl UI | backend + frontend |
+| CF include/exclude patterns + configurable limit | main | ✅ passed through to CF /crawl API | backend |
 
 ### 1.3 RAG Chat
 
@@ -221,7 +223,17 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 - `nuxt-app/server/api/chat/message.post.ts` -- same 2-step pipeline, non-streaming variant; returns `products` in response alongside `sources`
 - `nuxt-app/app/types/api.ts` -- added `ChatProductResult` interface; `ChatMessageResponse` now includes `products: ChatProductResult[]`; `ChatSourcesEvent` now includes optional `products` field
 
-Branch: `feat/anti-hallucination-rag` (Part A+B complete)
+Branch: `feat/anti-hallucination-rag` (Part A+B complete, merged to main)
+
+### What exists (Crawl optimization — Sitemap discovery + URL pattern filtering)
+
+- `nuxt-app/supabase/migrations/0010_crawl_job_config.sql` — adds `page_limit`, `include_patterns`, `exclude_patterns` columns to `crawl_jobs`
+- `nuxt-app/server/api/crawl/discover.post.ts` — NEW: sitemap discovery endpoint; fetches sitemap.xml (+ sitemap_index.xml fallback + robots.txt `Sitemap:` directive); parses URLs, groups by first path segment, returns groups with counts + sample URLs
+- `nuxt-app/server/api/crawl/start.post.ts` — expanded: accepts `limit`, `includePatterns`, `excludePatterns`; passes `options.includePatterns`/`excludePatterns` to CF; default excludes (cart, checkout, login, admin); persists config on `crawl_jobs`
+- `nuxt-app/app/composables/useCrawl.ts` — added `discoverSite()`, `resetDiscovery()`, sitemap discovery state refs; `startCrawl()` now accepts `{ limit, includePatterns, excludePatterns }`
+- `nuxt-app/app/pages/dashboard/crawl.vue` — 2-step flow: enter URL → "Analyze Site" → shows sitemap groups as checkable cards → select sections → "Start Crawl" with patterns; fallback: no sitemap → crawl directly; "Skip & Crawl All" option
+- `nuxt-app/app/types/api.ts` — added `SitemapGroup`, `DiscoverResponse`; `CrawlJob` updated with `page_limit`, `include_patterns`, `exclude_patterns`; `StartCrawlRequest` expanded
+- `nuxt-app/app/types/database.types.ts` — `crawl_jobs` Row/Insert/Update updated with new config columns
 
 ### What exists (Phase 1.2 + 1.3 backend — Crawl Pipeline + RAG Chat)
 
