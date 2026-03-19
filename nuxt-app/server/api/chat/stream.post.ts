@@ -11,7 +11,7 @@ const bodySchema = z.object({
 })
 
 // In-memory rate limiter: 20 requests per minute per widget_key
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const rateLimitMap = new Map<string, { count: number, resetAt: number }>()
 
 function checkRateLimit(key: string): boolean {
   const now = Date.now()
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   const body = await readValidatedBody(event, bodySchema.parse)
 
   if (!checkRateLimit(body.widget_key)) {
-    setResponseHeader(event, 'Retry-After', '60')
+    setResponseHeader(event, 'Retry-After', 60)
     throw createError({ statusCode: 429, message: 'Rate limit exceeded. Try again in 60 seconds.' })
   }
 
@@ -61,8 +61,7 @@ export default defineEventHandler(async (event) => {
       let conversationId: string
       if (existingConv) {
         conversationId = existingConv.id
-      }
-      else {
+      } else {
         const { data: newConv } = await client
           .from('conversations')
           .insert({ merchant_id: merchantId, session_id: body.session_id, source: 'widget' })
@@ -81,7 +80,7 @@ export default defineEventHandler(async (event) => {
         .order('created_at', { ascending: false })
         .limit(6)
 
-      const history = (historyRows ?? []).reverse() as Array<{ role: 'user' | 'assistant'; content: string }>
+      const history = (historyRows ?? []).reverse() as Array<{ role: 'user' | 'assistant', content: string }>
 
       // Embed the user message for vector search
       const embedResults = await embedTexts([body.message], config.openaiApiKey as string)
@@ -97,7 +96,18 @@ export default defineEventHandler(async (event) => {
         p_merchant_id: merchantId
       })
 
-      const chunks: Array<{ id: string; content: string; similarity: number }> = chunkResults ?? []
+      const chunks: Array<{ id: string, content: string, similarity: number }> = chunkResults ?? []
+
+      // Persist user message before LLM call so it's saved even if inference fails
+      const { error: userMsgError } = await client.from('messages').insert({
+        conversation_id: conversationId,
+        merchant_id: merchantId,
+        role: 'user',
+        content: body.message,
+        chunks_used: [],
+        confidence_score: null
+      })
+      if (userMsgError) throw new Error(`Failed to persist user message: ${userMsgError.message}`)
 
       // Send retrieved sources to client before streaming starts
       await stream.push({
@@ -133,18 +143,8 @@ export default defineEventHandler(async (event) => {
         ? Math.max(...chunks.map(c => c.similarity))
         : null
 
-      // Persist user message
-      await client.from('messages').insert({
-        conversation_id: conversationId,
-        merchant_id: merchantId,
-        role: 'user',
-        content: body.message,
-        chunks_used: [],
-        confidence_score: null
-      })
-
       // Persist assistant message
-      const { data: assistantMsg } = await client
+      const { data: assistantMsg, error: assistantMsgError } = await client
         .from('messages')
         .insert({
           conversation_id: conversationId,
@@ -156,14 +156,13 @@ export default defineEventHandler(async (event) => {
         })
         .select('id')
         .single()
+      if (assistantMsgError) throw new Error(`Failed to persist assistant message: ${assistantMsgError.message}`)
 
       await stream.push({ event: 'done', data: JSON.stringify({ message_id: assistantMsg?.id ?? null }) })
-    }
-    catch (err) {
+    } catch (err) {
       const message = err instanceof Error ? err.message : 'Stream error'
       await stream.push({ event: 'error', data: JSON.stringify({ message }) })
-    }
-    finally {
+    } finally {
       await stream.close()
     }
   })()
