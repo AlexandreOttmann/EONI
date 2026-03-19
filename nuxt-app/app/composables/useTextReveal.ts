@@ -42,7 +42,7 @@ export function useTextReveal(el: Ref<HTMLElement | null>) {
         duration: 0.9,
         ease: 'power4.out',
         stagger: 0.04,
-        scrollTrigger: { trigger: el.value, start: 'top 85%', once: true },
+        scrollTrigger: { trigger: el.value, start: 'top 85%', once: true }
       }
     )
   })

@@ -7,7 +7,7 @@ export default defineEventHandler(async (event): Promise<MerchantConfigResponse>
   if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
 
   const client = await serverSupabaseServiceRole(event)
-  let { data: rawMerchant, error } = await client
+  const { data: rawMerchant, error } = await client
     .from('merchants')
     .select('*')
     .eq('id', user.sub)

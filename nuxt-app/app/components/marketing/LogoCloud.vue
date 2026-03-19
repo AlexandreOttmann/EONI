@@ -10,12 +10,15 @@ const logos = [
   'Alpine Gear',
   'Riviera Stays',
   'Nomad Market',
-  'Solstice Travel',
+  'Solstice Travel'
 ] as const
 </script>
 
 <template>
-  <section ref="sectionRef" class="border-y border-border-base py-20">
+  <section
+    ref="sectionRef"
+    class="border-y border-border-base py-20"
+  >
     <p class="mb-10 text-center text-xs font-mono uppercase tracking-[0.2em] text-text-subtle">
       Trusted by forward-thinking merchants
     </p>
@@ -34,7 +37,11 @@ const logos = [
       <!-- Scrolling track -->
       <div class="flex gap-16 animate-logo-scroll">
         <!-- First set -->
-        <div v-for="logo in logos" :key="logo" class="flex flex-shrink-0 items-center">
+        <div
+          v-for="logo in logos"
+          :key="logo"
+          class="flex flex-shrink-0 items-center"
+        >
           <span class="whitespace-nowrap text-lg font-display font-medium text-text-base opacity-40 transition-opacity duration-300 hover:opacity-70">
             {{ logo }}
           </span>

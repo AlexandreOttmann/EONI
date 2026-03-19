@@ -44,7 +44,10 @@ const currentYear = new Date().getFullYear()
         <!-- Brand column -->
         <div class="col-span-2 md:col-span-1">
           <div class="flex items-center gap-2 mb-4">
-            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan" aria-hidden="true" />
+            <div
+              class="w-7 h-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan"
+              aria-hidden="true"
+            />
             <span class="text-sm font-display font-semibold text-text-base">Synth</span>
           </div>
           <p class="text-sm text-text-muted leading-relaxed max-w-xs">
@@ -53,12 +56,18 @@ const currentYear = new Date().getFullYear()
         </div>
 
         <!-- Nav columns -->
-        <div v-for="col in navColumns" :key="col.title">
+        <div
+          v-for="col in navColumns"
+          :key="col.title"
+        >
           <h3 class="text-xs font-mono uppercase tracking-[0.12em] text-text-subtle mb-4">
             {{ col.title }}
           </h3>
           <ul class="space-y-2.5">
-            <li v-for="link in col.links" :key="link.label">
+            <li
+              v-for="link in col.links"
+              :key="link.label"
+            >
               <a
                 :href="link.href"
                 class="text-sm text-text-muted hover:text-text-base transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base focus-visible:outline-none rounded"
@@ -83,7 +92,10 @@ const currentYear = new Date().getFullYear()
             :aria-label="social.label"
             class="text-text-subtle hover:text-text-muted transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-accent-violet focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base focus-visible:outline-none rounded"
           >
-            <UIcon :name="social.icon" class="w-4 h-4" />
+            <UIcon
+              :name="social.icon"
+              class="w-4 h-4"
+            />
           </a>
         </div>
       </div>

@@ -17,20 +17,20 @@ const steps: Step[] = [
     number: '01',
     icon: 'i-lucide-link',
     title: 'Paste your URL',
-    description: 'Enter your website address. Our crawler indexes every product, service, and page automatically.',
+    description: 'Enter your website address. Our crawler indexes every product, service, and page automatically.'
   },
   {
     number: '02',
     icon: 'i-lucide-brain',
     title: 'AI indexes your catalog',
-    description: 'Content is chunked, embedded, and stored in a vector database. Your entire catalog becomes AI-searchable.',
+    description: 'Content is chunked, embedded, and stored in a vector database. Your entire catalog becomes AI-searchable.'
   },
   {
     number: '03',
     icon: 'i-lucide-rocket',
     title: 'Go live in minutes',
-    description: 'Add one script tag. Your AI chat widget is live, and your products appear in LLM answers.',
-  },
+    description: 'Add one script tag. Your AI chat widget is live, and your products appear in LLM answers.'
+  }
 ]
 
 onMounted(() => {
@@ -51,9 +51,9 @@ onMounted(() => {
         scrollTrigger: {
           trigger: sectionRef.value,
           start: 'top 75%',
-          once: true,
-        },
-      },
+          once: true
+        }
+      }
     )
   }
 
@@ -71,16 +71,20 @@ onMounted(() => {
         scrollTrigger: {
           trigger: sectionRef.value,
           start: 'top 80%',
-          once: true,
-        },
-      },
+          once: true
+        }
+      }
     )
   }
 })
 </script>
 
 <template>
-  <section id="how-it-works" ref="sectionRef" class="py-32">
+  <section
+    id="how-it-works"
+    ref="sectionRef"
+    class="py-32"
+  >
     <div class="mx-auto max-w-6xl px-6">
       <!-- Header -->
       <div class="mb-16 text-center">
@@ -128,7 +132,10 @@ onMounted(() => {
           <!-- Icon -->
           <div class="mb-4 flex items-center justify-start md:justify-center">
             <div class="flex h-10 w-10 items-center justify-center rounded-xl border border-border-base bg-surface-2">
-              <UIcon :name="step.icon" class="h-5 w-5 text-accent-cyan" />
+              <UIcon
+                :name="step.icon"
+                class="h-5 w-5 text-accent-cyan"
+              />
             </div>
           </div>
 

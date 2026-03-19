@@ -18,7 +18,7 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   runtimeConfig: {
-    anthropicApiKey: '',
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',
     cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
     cloudflareCrawlApiToken: process.env.CLOUDFLARE_CRAWL_API_TOKEN ?? '',

@@ -49,7 +49,10 @@ const elapsedTime = computed(() => {
           :transition="{ repeat: Infinity, duration: 1, ease: 'linear' }"
           class="shrink-0"
         >
-          <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 text-accent-violet" />
+          <UIcon
+            name="i-heroicons-arrow-path"
+            class="w-4 h-4 text-accent-violet"
+          />
         </motion>
         <UIcon
           v-else-if="job.status === 'completed'"
@@ -102,7 +105,10 @@ const elapsedTime = computed(() => {
     <div class="mt-3 flex gap-4 text-xs font-mono tabular-nums text-text-muted">
       <span>{{ job.pages_crawled }}&nbsp;/&nbsp;{{ job.pages_found }} pages</span>
       <span>{{ job.chunks_created }} chunks</span>
-      <span v-if="elapsedTime" class="ml-auto">{{ elapsedTime }}</span>
+      <span
+        v-if="elapsedTime"
+        class="ml-auto"
+      >{{ elapsedTime }}</span>
     </div>
   </UCard>
 </template>

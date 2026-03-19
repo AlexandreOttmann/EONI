@@ -52,7 +52,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <section id="product-showcase" class="py-32">
+  <section
+    id="product-showcase"
+    class="py-32"
+  >
     <div class="mx-auto max-w-6xl px-6 mb-12">
       <span class="text-xs font-mono uppercase tracking-[0.2em] text-accent-cyan mb-4 block">
         See it in action
@@ -62,7 +65,10 @@ onMounted(() => {
       </h2>
     </div>
 
-    <div ref="containerRef" class="relative overflow-hidden">
+    <div
+      ref="containerRef"
+      class="relative overflow-hidden"
+    >
       <div
         ref="trackRef"
         class="flex gap-8 px-6 will-change-transform md:flex-nowrap overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none scrollbar-hide"
@@ -75,7 +81,10 @@ onMounted(() => {
           <div class="rounded-2xl bg-surface-2 border border-border-base overflow-hidden">
             <div class="px-6 py-4 border-b border-border-base flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-surface-3 border border-border-base flex items-center justify-center">
-                <UIcon :name="panel.icon" class="w-5 h-5 text-accent-violet" />
+                <UIcon
+                  :name="panel.icon"
+                  class="w-5 h-5 text-accent-violet"
+                />
               </div>
               <div>
                 <p class="text-base font-display font-medium text-text-base">

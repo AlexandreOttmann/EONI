@@ -21,12 +21,11 @@ export function buildPrompt(
   chunks: ChunkResult[],
   history: HistoryMessage[],
   userMessage: string
-): { system: string; messages: Anthropic.MessageParam[] } {
+): { system: string, messages: Anthropic.MessageParam[] } {
   let contextSection = ''
   if (chunks.length === 0) {
     contextSection = '\nNo relevant context was found. Politely inform the user that you do not have enough information to answer their question.'
-  }
-  else {
+  } else {
     contextSection = '\nContext:\n' + chunks.map((c, i) =>
       `[${i + 1}] (relevance: ${c.similarity.toFixed(2)})\n${c.content}`
     ).join('\n\n')

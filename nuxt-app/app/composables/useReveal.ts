@@ -15,7 +15,7 @@ export function useReveal(el: Ref<HTMLElement | null>, delay = 0) {
         duration: 0.8,
         ease: 'power3.out',
         delay,
-        scrollTrigger: { trigger: el.value, start: 'top 88%', once: true },
+        scrollTrigger: { trigger: el.value, start: 'top 88%', once: true }
       }
     )
   })

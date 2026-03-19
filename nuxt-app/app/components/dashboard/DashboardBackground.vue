@@ -1,6 +1,9 @@
 <template>
   <!-- Drifting orb layer — below all content -->
-  <div aria-hidden="true" class="dashboard-bg pointer-events-none fixed inset-0 z-0 overflow-hidden">
+  <div
+    aria-hidden="true"
+    class="dashboard-bg pointer-events-none fixed inset-0 z-0 overflow-hidden"
+  >
     <div class="orb orb-violet" />
     <div class="orb orb-cyan" />
     <div class="orb orb-violet-2" />
