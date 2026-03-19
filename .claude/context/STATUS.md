@@ -114,7 +114,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 ## Current Focus
 
-Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Crawl Pipeline backend complete. Phase 1.3 RAG Chat backend complete. Frontend wiring of dashboard pages to real APIs is next.
+Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Crawl Pipeline backend complete. Phase 1.3 RAG Chat backend complete. Anti-hallucination RAG refactor Part A (structured extraction) and Part B (validation pipeline) complete on `feat/anti-hallucination-rag`. Next: security-auditor reviews products table RLS + match_products permissions + validator input sanitization; then playwright-tester E2E coverage.
 
 ### What exists (Phase 1a — Marketing Surface)
 
@@ -212,7 +212,16 @@ Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Cr
 - `nuxt-app/app/types/api.ts` — added `Product` interface; `CrawlJob` now includes `products_extracted: number`
 - `nuxt-app/app/types/database.types.ts` — added `products` Row/Insert/Update; `crawl_jobs` updated with `products_extracted`; `match_products` added to Functions
 
-Branch: `feat/anti-hallucination-rag`
+### What exists (Anti-hallucination RAG refactor -- Part B: Validation pipeline at query time)
+
+- `nuxt-app/server/utils/chat.ts` -- refactored `buildChatContext()`: products-first retrieval (top 3, threshold 0.65 via `match_products` RPC), chunks-only fallback (top 5, threshold 0.65); returns `{ conversationId, products, chunks, queryEmbedding, history }` (no longer builds prompt); exports `ProductResult`, `ChunkResult`, `HistoryMessage`, `ChatContext` types
+- `nuxt-app/server/utils/rag-validator.ts` -- NEW: `validateAndExtract()` function: short-circuits on empty context, uses Claude Haiku for fact-checking + answerability assessment, Zod-parsed response, populates `suggestedProducts` for soft fallback; exports `ValidationResult` type
+- `nuxt-app/server/utils/prompt.ts` -- added `buildFactBasedPrompt()`: fact-based prompt with verified facts + structured product data, "explain WHY it matches" instruction, source citation rules; original `buildPrompt()` preserved for chunk-only fallback
+- `nuxt-app/server/api/chat/stream.post.ts` -- rewired to 2-step pipeline: buildChatContext -> validateAndExtract -> branch (not answerable: soft fallback with suggested products, no Sonnet call; answerable: buildFactBasedPrompt -> Sonnet stream); structured consola logging per query; confidence_score from validation persisted on messages
+- `nuxt-app/server/api/chat/message.post.ts` -- same 2-step pipeline, non-streaming variant; returns `products` in response alongside `sources`
+- `nuxt-app/app/types/api.ts` -- added `ChatProductResult` interface; `ChatMessageResponse` now includes `products: ChatProductResult[]`; `ChatSourcesEvent` now includes optional `products` field
+
+Branch: `feat/anti-hallucination-rag` (Part A+B complete)
 
 ### What exists (Phase 1.2 + 1.3 backend — Crawl Pipeline + RAG Chat)
 
@@ -278,7 +287,7 @@ Branch: `feat/anti-hallucination-rag`
 |--------|-------|-------|
 | main | stable | — |
 | feat/dashboard-wiring | ready for review | frontend |
-| feat/anti-hallucination-rag | Part A complete | backend |
+| feat/anti-hallucination-rag | Part A+B complete | backend |
 
 ---
 

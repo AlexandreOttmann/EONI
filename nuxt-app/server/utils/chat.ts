@@ -1,8 +1,42 @@
 import type { H3Event } from 'h3'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type Anthropic from '@anthropic-ai/sdk'
 import { embedTexts } from './embedder'
-import { buildPrompt } from './prompt'
+
+// ─── Types ──────────────────────────────────────────────────
+
+export interface ProductResult {
+  id: string
+  name: string
+  description: string | null
+  price: number | null
+  currency: string
+  availability: string
+  category: string | null
+  source_url: string
+  image_url: string | null
+  similarity: number
+}
+
+export interface ChunkResult {
+  id: string
+  content: string
+  similarity: number
+}
+
+export interface HistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface ChatContext {
+  conversationId: string
+  products: ProductResult[]
+  chunks: ChunkResult[]
+  queryEmbedding: number[]
+  history: HistoryMessage[]
+}
+
+// ─── Rate limiter ───────────────────────────────────────────
 
 // In-memory rate limiter shared across both chat endpoints
 const rateLimitMap = new Map<string, { count: number, resetAt: number }>()
@@ -20,6 +54,8 @@ export function rateLimitByKey(event: H3Event, key: string, limit = 20, windowMs
   }
   entry.count++
 }
+
+// ─── Merchant resolution ────────────────────────────────────
 
 export async function resolveMerchant(
   event: H3Event,
@@ -50,19 +86,16 @@ export async function resolveMerchant(
   return { merchantId: merchant.id, widgetKey, merchant }
 }
 
+// ─── Chat context builder (products-first retrieval) ────────
+
 export async function buildChatContext(
   supabase: SupabaseClient,
   merchantId: string,
-  merchantInfo: { name: string, domain: string },
+  _merchantInfo: { name: string, domain: string },
   message: string,
   sessionId: string,
   openaiApiKey: string
-): Promise<{
-  conversationId: string
-  chunks: Array<{ id: string, content: string, similarity: number }>
-  system: string
-  messages: Anthropic.MessageParam[]
-}> {
+): Promise<ChatContext> {
   // Lookup or create conversation
   const { data: existingConv } = await supabase
     .from('conversations')
@@ -93,24 +126,33 @@ export async function buildChatContext(
     .order('created_at', { ascending: false })
     .limit(6)
 
-  const history = (historyRows ?? []).reverse() as Array<{ role: 'user' | 'assistant', content: string }>
+  const history = (historyRows ?? []).reverse() as HistoryMessage[]
 
   // Embed user message
   const embedResults = await embedTexts([message], openaiApiKey)
   const queryEmbedding = embedResults[0]
   if (!queryEmbedding) throw new Error('Failed to generate query embedding')
 
-  // pgvector search
-  const { data: chunkResults } = await supabase.rpc('match_chunks', {
+  // 1. Search products FIRST (top 3, threshold 0.65)
+  const { data: productResults } = await supabase.rpc('match_products', {
     query_embedding: queryEmbedding as unknown as string,
-    match_threshold: 0.50,
-    match_count: 8,
+    match_threshold: 0.65,
+    match_count: 3,
     p_merchant_id: merchantId
   })
+  const products: ProductResult[] = productResults ?? []
 
-  const chunks: Array<{ id: string, content: string, similarity: number }> = chunkResults ?? []
+  // 2. Fallback to chunks ONLY if no products found (top 5, threshold 0.65)
+  let chunks: ChunkResult[] = []
+  if (products.length === 0) {
+    const { data: chunkResults } = await supabase.rpc('match_chunks', {
+      query_embedding: queryEmbedding as unknown as string,
+      match_threshold: 0.65,
+      match_count: 5,
+      p_merchant_id: merchantId
+    })
+    chunks = chunkResults ?? []
+  }
 
-  const { system, messages } = buildPrompt(merchantInfo, chunks, history, message)
-
-  return { conversationId, chunks, system, messages }
+  return { conversationId, products, chunks, queryEmbedding, history }
 }

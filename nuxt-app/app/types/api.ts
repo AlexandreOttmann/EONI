@@ -191,9 +191,23 @@ export interface ChatMessageRequest {
   widget_key?: string
 }
 
+export interface ChatProductResult {
+  id: string
+  name: string
+  description: string | null
+  price: number | null
+  currency: string
+  availability: string
+  category: string | null
+  source_url: string
+  image_url: string | null
+  similarity: number
+}
+
 export interface ChatMessageResponse {
   text: string
   sources: Array<{ id: string, content: string, similarity: number }>
+  products: ChatProductResult[]
   message_id: string
   session_id: string
   conversation_id: string
@@ -208,9 +222,10 @@ export interface ChatSourcesEvent {
   chunks: Array<{
     id: string
     content: string
-    metadata: ChunkMetadata
+    metadata?: ChunkMetadata
     similarity: number
   }>
+  products?: ChatProductResult[]
 }
 
 export interface ChatDoneEvent {

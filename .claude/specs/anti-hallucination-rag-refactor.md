@@ -48,7 +48,7 @@ Answer with "why this matches" reasoning
 
 ### A1. Database — `products` table
 
-**New migration:** `nuxt-app/supabase/migrations/0007_products_table.sql`
+**New migration:** `nuxt-app/supabase/migrations/0008_products_table.sql`
 
 ```sql
 CREATE TABLE products (
@@ -103,7 +103,7 @@ ALTER TABLE crawl_jobs ADD COLUMN products_extracted integer DEFAULT 0;
 
 ### A2. Database — `match_products` RPC
 
-**New migration:** `nuxt-app/supabase/migrations/0008_match_products_function.sql`
+**New migration:** `nuxt-app/supabase/migrations/0009_match_products_function.sql`
 
 Same pattern as existing `match_chunks` (see `0003_match_chunks_function.sql`):
 

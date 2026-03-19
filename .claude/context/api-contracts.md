@@ -72,7 +72,7 @@ All routes live in `nuxt-app/server/api/`. Every route uses Zod for input valida
 **Chat Stream Response:** SSE events in this order:
 ```
 event: sources
-data: {"chunks": [{"id": "uuid", "content": "...", "similarity": 0.87}]}
+data: {"chunks": [{"id": "uuid", "content": "...", "similarity": 0.87}], "products": [{"id": "uuid", "name": "...", "price": 100, "currency": "EUR", "source_url": "...", "similarity": 0.85}]}
 
 event: chunk
 data: {"text": "partial response text"}
@@ -82,6 +82,20 @@ data: {"message_id": "uuid"}
 
 event: error
 data: {"message": "error description"}
+```
+
+**2-step validation pipeline:** The stream endpoint uses a products-first retrieval strategy (top 3 products, threshold 0.65; fallback to top 5 chunks). A Haiku-based validator determines answerability. If not answerable, a soft fallback is returned with suggested products (no Sonnet call). If answerable, a fact-based prompt is sent to Sonnet.
+
+**Chat Message Response:**
+```typescript
+{
+  text: string
+  sources: Array<{ id: string, content: string, similarity: number }>
+  products: ChatProductResult[]  // products retrieved for this query
+  message_id: string
+  session_id: string
+  conversation_id: string
+}
 ```
 
 **Chat History Response:**

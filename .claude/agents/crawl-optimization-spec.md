@@ -152,7 +152,7 @@ do {
 
 ### New files to create
 
-**`nuxt-app/supabase/migrations/0007_products_table.sql`:**
+**`nuxt-app/supabase/migrations/0008_products_table.sql`:**
 
 ```sql
 -- Products table: structured data extracted via CF jsonOptions
