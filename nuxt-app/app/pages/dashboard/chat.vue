@@ -3,6 +3,7 @@ definePageMeta({ layout: 'dashboard' })
 useHead({ title: 'Chat Preview' })
 
 const { messages, sources, isStreaming, error, currentSessionId, savedSessions, loadSession, send, stop, reset } = useChat()
+const { renderMarkdown } = useMarkdown()
 
 const input = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
@@ -141,13 +142,27 @@ watch(
                 ? 'bg-accent-violet text-white'
                 : 'bg-surface-2 text-text-base'"
             >
-              <p class="whitespace-pre-wrap break-words min-w-0">
-                {{ msg.content }}<span
-                  v-if="isStreaming && msg.role === 'assistant' && i === messages.length - 1"
+              <!-- User messages: plain text -->
+              <p
+                v-if="msg.role === 'user'"
+                class="whitespace-pre-wrap break-words min-w-0"
+              >
+                {{ msg.content }}
+              </p>
+
+              <!-- Assistant messages: rendered markdown -->
+              <div
+                v-else
+                class="chat-prose break-words min-w-0"
+              >
+                <!-- eslint-disable-next-line vue/no-v-html -->
+                <div v-html="renderMarkdown(msg.content)" />
+                <span
+                  v-if="isStreaming && i === messages.length - 1"
                   class="inline-block w-1.5 h-4 bg-accent-violet animate-pulse ml-0.5 align-text-bottom"
                   aria-label="Typing"
                 />
-              </p>
+              </div>
             </div>
           </div>
         </div>
@@ -238,3 +253,149 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+/* ─── Markdown prose inside assistant chat bubbles ─── */
+.chat-prose :deep(p) {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.chat-prose :deep(p:first-child) {
+  margin-top: 0;
+}
+
+.chat-prose :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.chat-prose :deep(strong),
+.chat-prose :deep(b) {
+  font-weight: 600;
+  color: inherit;
+}
+
+.chat-prose :deep(em),
+.chat-prose :deep(i) {
+  font-style: italic;
+  color: inherit;
+}
+
+.chat-prose :deep(a) {
+  color: var(--color-accent-violet-2);
+  text-decoration: none;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.chat-prose :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.chat-prose :deep(ul),
+.chat-prose :deep(ol) {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.chat-prose :deep(ul) {
+  list-style-type: disc;
+}
+
+.chat-prose :deep(ol) {
+  list-style-type: decimal;
+}
+
+.chat-prose :deep(li) {
+  margin: 0.15em 0;
+}
+
+.chat-prose :deep(li > p) {
+  margin: 0;
+}
+
+.chat-prose :deep(code) {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
+}
+
+.chat-prose :deep(pre) {
+  margin: 0.5em 0;
+  padding: 0.75em 1em;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.chat-prose :deep(pre code) {
+  background: none;
+  padding: 0;
+  font-size: 0.8em;
+  line-height: 1.6;
+}
+
+.chat-prose :deep(blockquote) {
+  margin: 0.5em 0;
+  padding-left: 0.75em;
+  border-left: 3px solid var(--color-accent-violet);
+  color: var(--color-text-muted);
+}
+
+.chat-prose :deep(h1) {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 0.75em 0 0.25em;
+}
+
+.chat-prose :deep(h2) {
+  font-size: 1.125em;
+  font-weight: 600;
+  margin: 0.6em 0 0.2em;
+}
+
+.chat-prose :deep(h3) {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0.5em 0 0.15em;
+}
+
+.chat-prose :deep(h4) {
+  font-size: 0.9em;
+  font-weight: 600;
+  margin: 0.4em 0 0.1em;
+}
+
+.chat-prose :deep(h1:first-child),
+.chat-prose :deep(h2:first-child),
+.chat-prose :deep(h3:first-child),
+.chat-prose :deep(h4:first-child) {
+  margin-top: 0;
+}
+
+.chat-prose :deep(hr) {
+  margin: 0.75em 0;
+  border: none;
+  border-top: 1px solid var(--color-border-base);
+}
+
+.chat-prose :deep(table) {
+  width: 100%;
+  margin: 0.5em 0;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.chat-prose :deep(th),
+.chat-prose :deep(td) {
+  padding: 0.35em 0.5em;
+  border: 1px solid var(--color-border-base);
+  text-align: left;
+}
+
+.chat-prose :deep(th) {
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+}
+</style>
