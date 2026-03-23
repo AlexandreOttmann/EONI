@@ -6,6 +6,7 @@ const navItems = [
   { label: 'Crawl', icon: 'i-heroicons-arrow-path', to: '/dashboard/crawl' },
   { label: 'Chat Preview', icon: 'i-heroicons-chat-bubble-left-ellipsis', to: '/dashboard/chat' },
   { label: 'Widget', icon: 'i-heroicons-code-bracket', to: '/dashboard/widget' },
+  { label: 'API', icon: 'i-heroicons-command-line', to: '/dashboard/api' },
   { label: 'Analytics', icon: 'i-heroicons-chart-bar', to: '/dashboard/analytics' },
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/dashboard/settings' }
 ]

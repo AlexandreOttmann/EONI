@@ -1,6 +1,6 @@
 # Ecommerce AI SaaS — Build Status
 
-Last updated: 2026-03-19
+Last updated: 2026-03-23
 
 > **New agent?** Read this file first. Then read the files listed under
 > "Required Context" for your specific task. Do NOT redo completed work.
@@ -75,6 +75,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Settings page (merchant profile, API keys) | feat/dashboard-wiring | ✅ wired to real API | frontend |
 | Chat preview page (SSE streaming, sources panel) | feat/dashboard-wiring | ✅ | frontend |
 | Dashboard overview wired to real data | feat/dashboard-wiring | ✅ | frontend |
+| Developer API docs page (key display, code examples, tabs) | main | ✅ | frontend |
 
 ---
 
@@ -262,6 +263,7 @@ Branch: `feat/anti-hallucination-rag` (Part A+B complete, merged to main)
 - `nuxt-app/app/pages/dashboard/widget.vue` — wired to `useMerchantConfig()`, real widget_key, all mock data removed
 - `nuxt-app/app/pages/dashboard/analytics.vue` — wired to `useFetch('/api/merchant/analytics')`, all mock data removed
 - `nuxt-app/app/pages/dashboard/index.vue` — wired to `useMerchantConfig()` + `useCrawl()` + analytics API, stats derived from real data, "Top Questions" replaces "Recent Conversations"
+- `nuxt-app/app/pages/dashboard/api.vue` — Developer API docs page: API key display with reveal/copy, UTabs for Streaming (SSE) vs Non-streaming (JSON), endpoint docs with request/response formats, curl + JS fetch examples with copy buttons, rate limit info, auth header format
 
 ---
 
