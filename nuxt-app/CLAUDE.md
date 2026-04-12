@@ -1,4 +1,4 @@
-# Project Guidelines
+
 
 <!-- NUXT-DEVTOOLS:CRITICAL-FILES -->
 ## ⚠️ Critical Configuration Files

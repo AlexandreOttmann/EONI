@@ -398,9 +398,9 @@ Glass bg: bg-surface-base/70 backdrop-blur-xl
 Border (scroll-triggered, starts invisible): absolute bottom-0 left-0 right-0 h-px bg-border-base opacity-0
 ```
 
-**Logo**: `<NuxtLink to="/" class="flex items-center gap-2" aria-label="Synth homepage">`
+**Logo**: `<NuxtLink to="/" class="flex items-center gap-2" aria-label="Eoni homepage">`
 - Logo mark: `w-7 h-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan`
-- Logo text: `text-sm font-display font-semibold text-text-base` — "Synth"
+- Logo text: `text-sm font-display font-semibold text-text-base` — "Eoni"
 
 **Center nav links** (hidden below lg):
 ```
@@ -855,9 +855,9 @@ Links: `text-sm text-text-muted hover:text-text-base transition-colors duration-
 definePageMeta({ layout: 'marketing' })
 
 useSeoMeta({
-  title: 'Synth — Turn any website into an AI-powered storefront',
+  title: 'Eoni — Turn any website into an AI-powered storefront',
   description: 'Paste your URL. Our AI crawls your catalog, builds a smart chat widget, and makes your products discoverable by ChatGPT, Perplexity, and Claude.',
-  ogTitle: 'Synth — AI-powered storefronts for every merchant',
+  ogTitle: 'Eoni — AI-powered storefronts for every merchant',
   ogDescription: 'Turn any website into an AI-discoverable storefront.',
   twitterCard: 'summary_large_image',
 })

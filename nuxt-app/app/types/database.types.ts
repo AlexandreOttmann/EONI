@@ -40,10 +40,54 @@ export interface Database {
         }
         Relationships: []
       }
+      brands: {
+        Row: {
+          id: string
+          merchant_id: string
+          name: string
+          domain: string | null
+          description: string | null
+          logo_url: string | null
+          extracted_description: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          merchant_id: string
+          name: string
+          domain?: string | null
+          description?: string | null
+          logo_url?: string | null
+          extracted_description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          merchant_id?: string
+          name?: string
+          domain?: string | null
+          description?: string | null
+          logo_url?: string | null
+          extracted_description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'brands_merchant_id_fkey'
+            columns: ['merchant_id']
+            referencedRelation: 'merchants'
+            referencedColumns: ['id']
+          }
+        ]
+      }
       crawl_jobs: {
         Row: {
           id: string
           merchant_id: string
+          brand_id: string | null
           url: string
           status: string
           pages_found: number
@@ -62,6 +106,7 @@ export interface Database {
         Insert: {
           id?: string
           merchant_id: string
+          brand_id?: string | null
           url: string
           status?: string
           pages_found?: number
@@ -80,6 +125,7 @@ export interface Database {
         Update: {
           id?: string
           merchant_id?: string
+          brand_id?: string | null
           url?: string
           status?: string
           pages_found?: number
@@ -108,6 +154,7 @@ export interface Database {
         Row: {
           id: string
           merchant_id: string
+          brand_id: string | null
           crawl_job_id: string
           url: string
           title: string | null
@@ -117,6 +164,7 @@ export interface Database {
         Insert: {
           id?: string
           merchant_id: string
+          brand_id?: string | null
           crawl_job_id: string
           url: string
           title?: string | null
@@ -126,6 +174,7 @@ export interface Database {
         Update: {
           id?: string
           merchant_id?: string
+          brand_id?: string | null
           crawl_job_id?: string
           url?: string
           title?: string | null
@@ -151,8 +200,10 @@ export interface Database {
         Row: {
           id: string
           merchant_id: string
+          brand_id: string | null
           page_id: string
           content: string
+          content_type: string
           embedding: string | null
           metadata: Json
           token_count: number
@@ -161,8 +212,10 @@ export interface Database {
         Insert: {
           id?: string
           merchant_id: string
+          brand_id?: string | null
           page_id: string
           content: string
+          content_type?: string
           embedding?: string | null
           metadata?: Json
           token_count?: number
@@ -171,8 +224,10 @@ export interface Database {
         Update: {
           id?: string
           merchant_id?: string
+          brand_id?: string | null
           page_id?: string
           content?: string
+          content_type?: string
           embedding?: string | null
           metadata?: Json
           token_count?: number
@@ -197,6 +252,7 @@ export interface Database {
         Row: {
           id: string
           merchant_id: string
+          brand_id: string | null
           page_id: string | null
           crawl_job_id: string
           name: string
@@ -218,6 +274,7 @@ export interface Database {
         Insert: {
           id?: string
           merchant_id: string
+          brand_id?: string | null
           page_id?: string | null
           crawl_job_id: string
           name: string
@@ -239,6 +296,7 @@ export interface Database {
         Update: {
           id?: string
           merchant_id?: string
+          brand_id?: string | null
           page_id?: string | null
           crawl_job_id?: string
           name?: string
@@ -282,6 +340,7 @@ export interface Database {
         Row: {
           id: string
           merchant_id: string
+          brand_id: string | null
           session_id: string
           source: string
           created_at: string
@@ -289,6 +348,7 @@ export interface Database {
         Insert: {
           id?: string
           merchant_id: string
+          brand_id?: string | null
           session_id: string
           source?: string
           created_at?: string
@@ -296,6 +356,7 @@ export interface Database {
         Update: {
           id?: string
           merchant_id?: string
+          brand_id?: string | null
           session_id?: string
           source?: string
           created_at?: string
@@ -351,6 +412,123 @@ export interface Database {
             foreignKeyName: 'messages_merchant_id_fkey'
             columns: ['merchant_id']
             referencedRelation: 'merchants'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      indexes: {
+        Row: {
+          id: string
+          merchant_id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          merchant_id: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          merchant_id?: string
+          name?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'indexes_merchant_id_fkey'
+            columns: ['merchant_id']
+            referencedRelation: 'merchants'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      records: {
+        Row: {
+          id: string
+          merchant_id: string
+          brand_id: string | null
+          index_name: string
+          object_id: string
+          fields: Json
+          searchable_text: string
+          embedding: string | null
+          updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          merchant_id: string
+          brand_id?: string | null
+          index_name: string
+          object_id: string
+          fields?: Json
+          searchable_text?: string
+          embedding?: string | null
+          updated_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          merchant_id?: string
+          brand_id?: string | null
+          index_name?: string
+          object_id?: string
+          fields?: Json
+          searchable_text?: string
+          embedding?: string | null
+          updated_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'records_merchant_id_fkey'
+            columns: ['merchant_id']
+            referencedRelation: 'merchants'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      record_edges: {
+        Row: {
+          id: string
+          merchant_id: string
+          source_record_id: string
+          target_record_id: string
+          edge_type: string
+          edge_value: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          merchant_id: string
+          source_record_id: string
+          target_record_id: string
+          edge_type: string
+          edge_value: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          merchant_id?: string
+          source_record_id?: string
+          target_record_id?: string
+          edge_type?: string
+          edge_value?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'record_edges_source_record_id_fkey'
+            columns: ['source_record_id']
+            referencedRelation: 'records'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'record_edges_target_record_id_fkey'
+            columns: ['target_record_id']
+            referencedRelation: 'records'
             referencedColumns: ['id']
           }
         ]
@@ -412,6 +590,7 @@ export interface Database {
           match_threshold: number
           match_count: number
           p_merchant_id: string
+          p_brand_id?: string | null
         }
         Returns: Array<{
           id: string
@@ -423,6 +602,40 @@ export interface Database {
           category: string | null
           source_url: string
           image_url: string | null
+          similarity: number
+        }>
+      }
+      match_records: {
+        Args: {
+          query_embedding: string
+          match_threshold: number
+          match_count: number
+          p_merchant_id: string
+          p_index_name?: string | null
+          p_brand_id?: string | null
+        }
+        Returns: Array<{
+          id: string
+          object_id: string
+          index_name: string
+          fields: Json
+          searchable_text: string
+          similarity: number
+        }>
+      }
+      match_chunks_by_type: {
+        Args: {
+          query_embedding: string
+          match_threshold: number
+          match_count: number
+          p_merchant_id: string
+          p_brand_id?: string | null
+          p_content_types?: string[]
+        }
+        Returns: Array<{
+          id: string
+          content: string
+          metadata: Json
           similarity: number
         }>
       }

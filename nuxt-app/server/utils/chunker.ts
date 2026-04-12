@@ -1,3 +1,4 @@
+import { getEncoding } from 'js-tiktoken'
 import type { ChunkMetadata } from '~/types/api'
 
 export interface RawChunk {
@@ -7,10 +8,13 @@ export interface RawChunk {
 }
 
 const TARGET_TOKENS = 500
-const WORDS_PER_TOKEN = 1.3
 
-function estimateTokens(text: string): number {
-  return Math.ceil(text.split(/\s+/).filter(Boolean).length / WORDS_PER_TOKEN)
+// Create encoder once at module level — initialization is expensive.
+// cl100k_base matches text-embedding-3-small's tokenizer.
+const enc = getEncoding('cl100k_base')
+
+function countTokens(text: string): number {
+  return enc.encode(text).length
 }
 
 function extractMetadata(text: string, sourceUrl: string): ChunkMetadata {
@@ -40,22 +44,22 @@ export function chunkMarkdown(
   const sections = markdown.split(/(?=^## )/m).filter(s => s.trim().length > 0)
 
   for (const section of sections) {
-    if (estimateTokens(section) <= TARGET_TOKENS) {
+    if (countTokens(section) <= TARGET_TOKENS) {
       const content = prefix + section.trim()
-      chunks.push({ content, tokenCount: estimateTokens(content), metadata: extractMetadata(section, sourceUrl) })
+      chunks.push({ content, tokenCount: countTokens(content), metadata: extractMetadata(section, sourceUrl) })
       continue
     }
     // Split by paragraphs
     for (const para of splitToFit(section, '\n\n')) {
-      if (estimateTokens(para) <= TARGET_TOKENS) {
+      if (countTokens(para) <= TARGET_TOKENS) {
         const content = prefix + para.trim()
-        chunks.push({ content, tokenCount: estimateTokens(content), metadata: extractMetadata(para, sourceUrl) })
+        chunks.push({ content, tokenCount: countTokens(content), metadata: extractMetadata(para, sourceUrl) })
         continue
       }
       // Split by sentences
       for (const sentence of splitToFit(para, '. ')) {
         const content = prefix + sentence.trim()
-        chunks.push({ content, tokenCount: estimateTokens(content), metadata: extractMetadata(sentence, sourceUrl) })
+        chunks.push({ content, tokenCount: countTokens(content), metadata: extractMetadata(sentence, sourceUrl) })
       }
     }
   }

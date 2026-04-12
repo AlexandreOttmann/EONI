@@ -64,6 +64,7 @@ All routes live in `nuxt-app/server/api/`. Every route uses Zod for input valida
   message: string      // min 1, max 4000
   session_id: string   // browser session identifier
   widget_key: string   // uuid — merchant resolved server-side from this
+  brand_id?: string    // uuid — optional, scopes retrieval to a specific brand
 }
 ```
 
@@ -84,7 +85,7 @@ event: error
 data: {"message": "error description"}
 ```
 
-**2-step validation pipeline:** The stream endpoint uses a products-first retrieval strategy (top 3 products, threshold 0.65; fallback to top 5 chunks). A Haiku-based validator determines answerability. If not answerable, a soft fallback is returned with suggested products (no Sonnet call). If answerable, a fact-based prompt is sent to Sonnet.
+**2-step validation pipeline:** The stream endpoint uses intent-based retrieval: a query router (keyword rules + Haiku fallback) classifies intent as product/brand/support/general, then retrieves accordingly (products RPC for product intent, content-typed chunks for brand/support, general fallback for ambiguous). A Haiku-based validator determines answerability. If not answerable, a soft fallback is returned with suggested products (no Sonnet call). If answerable, a fact-based prompt is sent to Sonnet. Brand context is always injected when brand_id is provided.
 
 **Chat Message Response:**
 ```typescript
@@ -136,6 +137,45 @@ Note: `widget_key` inside `widget_config` is always preserved server-side. Clien
   no_answer_rate: number  // 0.0–1.0, ratio of low-confidence assistant messages
 }
 ```
+
+---
+
+## Index / Records Routes
+
+Algolia-style push indexing API. Auth: session (`serverSupabaseUser`) required for all routes.
+
+| Method | Path | Status | Description |
+|--------|------|--------|-------------|
+| GET | /api/indexes | ✅ | List all indexes with count + updatedAt |
+| GET | /api/indexes/:indexName/records | ✅ | Paginated record list with optional search |
+| PUT | /api/indexes/:indexName/records/:objectId | ✅ | Full upsert + re-embed |
+| PATCH | /api/indexes/:indexName/records/:objectId | ✅ | Partial field merge + re-embed |
+| POST | /api/indexes/:indexName/records/batch | ✅ | Batch upsert up to 1000 records |
+| DELETE | /api/indexes/:indexName/records/:objectId | ✅ | Delete one record + its edges |
+| DELETE | /api/indexes/:indexName/records | ✅ | Clear entire index for this merchant |
+
+**GET /api/indexes response:**
+```typescript
+{ indexes: Array<{ indexName: string, count: number, updatedAt: string }> }
+```
+
+**GET /api/indexes/:indexName/records query params:**
+- `page` (default 1), `limit` (default 24, max 100), `search` (ilike on searchable_text)
+
+**GET /api/indexes/:indexName/records response:**
+```typescript
+{ records: IndexRecord[], total: number }
+```
+
+**PUT/PATCH body:**
+```typescript
+{ fields: Record<string, unknown>, brand_id?: string }  // PATCH: brand_id ignored
+```
+
+**POST batch body:** `Array<{ objectID: string, ...fields }>` (max 1000)
+**POST batch response:** `{ taskID, indexName, objectsCount, status: 'processed' }`
+
+**RAG integration:** `match_records()` is called on every chat query alongside `match_chunks` / `match_products`. Top results have their 1-hop `record_edges` neighbors fetched and included as an "Indexed Records" section in both prompt builders.
 
 ---
 

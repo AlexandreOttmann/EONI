@@ -4,6 +4,9 @@ const route = useRoute()
 const navItems = [
   { label: 'Overview', icon: 'i-heroicons-squares-2x2', to: '/dashboard' },
   { label: 'Crawl', icon: 'i-heroicons-arrow-path', to: '/dashboard/crawl' },
+  { label: 'Brands', icon: 'i-heroicons-building-storefront', to: '/dashboard/brands' },
+  { label: 'Indexes', icon: 'i-heroicons-circle-stack', to: '/dashboard/indexes' },
+  { label: 'Products', icon: 'i-heroicons-shopping-bag', to: '/dashboard/products' },
   { label: 'Chat Preview', icon: 'i-heroicons-chat-bubble-left-ellipsis', to: '/dashboard/chat' },
   { label: 'Widget', icon: 'i-heroicons-code-bracket', to: '/dashboard/widget' },
   { label: 'API', icon: 'i-heroicons-command-line', to: '/dashboard/api' },
@@ -22,12 +25,26 @@ const activeIndex = computed(() => {
   return navItems.findIndex(item => isActive(item.to))
 })
 
-const authStore = useAuthStore()
-const { merchant, displayName, avatarUrl } = storeToRefs(authStore)
+const navListRef = ref<{ $el: HTMLElement } | null>(null)
+const indicatorTop = ref(0)
+
+function updateIndicatorTop() {
+  const idx = activeIndex.value
+  if (idx < 0 || !navListRef.value?.$el) return
+  const items = navListRef.value.$el.querySelectorAll<HTMLElement>(':scope > li')
+  const el = items[idx]
+  if (!el) return
+  indicatorTop.value = el.offsetTop + (el.offsetHeight - 16) / 2
+}
 
 onMounted(() => {
+  updateIndicatorTop()
   authStore.fetchMerchant()
 })
+watch(activeIndex, () => nextTick(updateIndicatorTop))
+
+const authStore = useAuthStore()
+const { merchant, displayName, avatarUrl } = storeToRefs(authStore)
 </script>
 
 <template>
@@ -58,6 +75,7 @@ onMounted(() => {
         Menu
       </p>
       <motion
+        ref="navListRef"
         as="ul"
         class="space-y-0.5 relative"
         :variants="{
@@ -72,7 +90,7 @@ onMounted(() => {
           v-if="activeIndex >= 0"
           as="div"
           class="absolute left-0 w-0.5 h-4 rounded-r bg-gradient-to-b from-accent-violet to-accent-cyan"
-          :animate="{ top: `${activeIndex * 40 + 12}px` }"
+          :animate="{ top: `${indicatorTop}px` }"
           :transition="{ type: 'spring', stiffness: 400, damping: 30 }"
           aria-hidden="true"
         />

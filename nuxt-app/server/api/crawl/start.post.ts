@@ -1,3 +1,4 @@
+import { consola } from 'consola'
 import { z } from 'zod'
 import { serverSupabaseUser, serverSupabaseServiceRole } from '#supabase/server'
 import type { StartCrawlResponse } from '~/types/api'
@@ -8,7 +9,8 @@ const bodySchema = z.object({
   url: z.string().url(),
   limit: z.number().int().min(1).max(500).optional().default(100),
   includePatterns: z.array(z.string()).max(20).optional(),
-  excludePatterns: z.array(z.string()).max(20).optional()
+  excludePatterns: z.array(z.string()).max(20).optional(),
+  brand_id: z.string().uuid().optional()
 })
 
 interface CrawlOptions {
@@ -27,6 +29,7 @@ async function processJob(
   url: string,
   merchantId: string,
   merchantName: string,
+  brandId: string | null,
   crawlOptions: CrawlOptions,
   config: { cloudflareAccountId: string, cloudflareCrawlApiToken: string, openaiApiKey: string }
 ) {
@@ -43,18 +46,37 @@ async function processJob(
       .update({ status: 'running', started_at: new Date().toISOString() })
       .eq('id', jobId)
 
-    // Build CF options with include/exclude patterns
+    // Build CF options — patterns go inside options per CF docs
     const mergedExclude = [
       ...DEFAULT_EXCLUDE_PATTERNS,
       ...(crawlOptions.excludePatterns ?? [])
     ]
 
+    // CF expects full URL patterns (https://example.com/path/**), not path-only (/path/**)
+    const origin = new URL(url).origin
+
     const cfOptions: Record<string, unknown> = {
-      excludePatterns: mergedExclude
+      excludePatterns: mergedExclude.map(p => p.startsWith('http') ? p : `${origin}${p.startsWith('/') ? '' : '/'}${p}`)
     }
     if (crawlOptions.includePatterns?.length) {
-      cfOptions.includePatterns = crawlOptions.includePatterns
+      cfOptions.includePatterns = crawlOptions.includePatterns.map(p =>
+        p.startsWith('http') ? p : `${origin}${p.startsWith('/') ? '' : '/'}${p}`
+      )
     }
+
+    const cfBody = {
+      url,
+      limit: crawlOptions.limit,
+      formats: ['markdown', 'json'],
+      rejectResourceTypes: ['image', 'media', 'font', 'stylesheet'],
+      options: cfOptions,
+      jsonOptions: {
+        prompt: EXTRACTION_PROMPT,
+        response_format: EXTRACTION_SCHEMA
+      }
+    }
+
+    consola.debug(`[crawl-start] CF request: formats=${JSON.stringify(cfBody.formats)} limit=${cfBody.limit}`)
 
     const cfSubmit = await $fetch<{ success: boolean, result: string }>(
       `https://api.cloudflare.com/client/v4/accounts/${config.cloudflareAccountId}/browser-rendering/crawl`,
@@ -64,17 +86,7 @@ async function processJob(
           'Authorization': `Bearer ${config.cloudflareCrawlApiToken}`,
           'Content-Type': 'application/json'
         },
-        body: {
-          url,
-          limit: crawlOptions.limit,
-          formats: ['markdown', 'json'],
-          rejectResourceTypes: ['image', 'media', 'font', 'stylesheet'],
-          options: cfOptions,
-          jsonOptions: {
-            prompt: EXTRACTION_PROMPT,
-            response_format: EXTRACTION_SCHEMA
-          }
-        }
+        body: cfBody
       }
     )
 
@@ -90,6 +102,7 @@ async function processJob(
         jobId,
         merchantId,
         merchantName,
+        brandId,
         ...config,
         supabaseUrl: runtimeConfig.supabaseUrl as string,
         supabaseServiceRoleKey: runtimeConfig.supabaseServiceRoleKey as string
@@ -123,6 +136,18 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
 
   if (running) throw createError({ statusCode: 409, message: 'A crawl is already in progress' })
 
+  // Verify brand ownership if brand_id provided
+  if (body.brand_id) {
+    const { data: brand } = await client
+      .from('brands')
+      .select('id')
+      .eq('id', body.brand_id)
+      .eq('merchant_id', user.sub)
+      .maybeSingle()
+
+    if (!brand) throw createError({ statusCode: 404, message: 'Brand not found' })
+  }
+
   // Get merchant name
   const { data: merchant } = await client
     .from('merchants')
@@ -134,6 +159,7 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
     .from('crawl_jobs')
     .insert({
       merchant_id: user.sub,
+      brand_id: body.brand_id ?? null,
       url: body.url,
       status: 'pending',
       page_limit: body.limit,
@@ -153,6 +179,7 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
     body.url,
     user.sub,
     merchant?.name ?? 'Merchant',
+    body.brand_id ?? null,
     {
       limit: body.limit,
       includePatterns: body.includePatterns,

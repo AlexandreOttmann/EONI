@@ -4,8 +4,11 @@
  * API as `jsonOptions` so structured data arrives alongside markdown.
  */
 
-export const EXTRACTION_PROMPT = `Extract product or service information from this page.
-For each item found, extract: name, description, price (number without currency symbol),
+export const EXTRACTION_PROMPT = `Analyze this page and extract:
+1. A natural language summary (2-3 sentences) describing the page content, suitable for semantic search.
+2. All products, services, or offerings found on the page.
+
+For each item: extract name, description, price (number without currency symbol),
 currency (ISO 4217: USD, EUR, GBP), availability (in_stock, out_of_stock, preorder),
 SKU or product code if present, category or type, and primary image URL.
 If this page does not contain product or service listings, return an empty items array.
@@ -16,6 +19,7 @@ export const EXTRACTION_SCHEMA = {
   json_schema: {
     name: 'page_extraction',
     properties: {
+      page_summary: { type: 'string' },
       items: {
         type: 'array',
         items: {

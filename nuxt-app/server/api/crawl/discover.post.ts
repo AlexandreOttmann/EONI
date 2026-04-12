@@ -54,8 +54,10 @@ function extractSitemapFromRobots(robotsTxt: string): string | null {
 
 /**
  * Collect all page URLs from a sitemap, handling sitemap index files.
+ * Returns urls and the canonical origin derived from the sitemap itself
+ * (which may differ from the user-input origin, e.g. www vs non-www).
  */
-async function collectSitemapUrls(origin: string): Promise<{ urls: string[], found: boolean }> {
+async function collectSitemapUrls(origin: string): Promise<{ urls: string[], found: boolean, canonicalOrigin: string }> {
   // 1. Try /sitemap.xml
   let xml = await safeFetch(`${origin}/sitemap.xml`)
 
@@ -75,24 +77,29 @@ async function collectSitemapUrls(origin: string): Promise<{ urls: string[], fou
     }
   }
 
-  if (!xml) return { urls: [], found: false }
+  if (!xml) return { urls: [], found: false, canonicalOrigin: origin }
 
-  // Handle sitemap index: fetch child sitemaps (limit to 5)
+  // Handle sitemap index: fetch all child sitemaps in parallel.
+  // safeFetch already has a 10s timeout per request so no cap needed.
   if (isSitemapIndex(xml)) {
-    const childUrls = extractLocs(xml).slice(0, 5)
+    const childUrls = extractLocs(xml)
+    const childResults = await Promise.all(
+      childUrls.map(async (u) => {
+        const childXml = await safeFetch(u)
+        return childXml && !isSitemapIndex(childXml) ? extractLocs(childXml) : []
+      })
+    )
     const allUrls: string[] = []
+    for (const urls of childResults) allUrls.push(...urls)
 
-    for (const childUrl of childUrls) {
-      const childXml = await safeFetch(childUrl)
-      if (childXml && !isSitemapIndex(childXml)) {
-        allUrls.push(...extractLocs(childXml))
-      }
-    }
-
-    return { urls: allUrls, found: true }
+    // Derive canonical origin from sitemap content (handles www vs non-www)
+    const canonicalOrigin = allUrls.length > 0 ? new URL(allUrls[0]!).origin : origin
+    return { urls: allUrls, found: true, canonicalOrigin }
   }
 
-  return { urls: extractLocs(xml), found: true }
+  const urls = extractLocs(xml)
+  const canonicalOrigin = urls.length > 0 ? new URL(urls[0]!).origin : origin
+  return { urls, found: true, canonicalOrigin }
 }
 
 /**
@@ -149,7 +156,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
 
   consola.info({ tag: 'crawl-discover', origin, merchantId: user.sub })
 
-  const { urls, found } = await collectSitemapUrls(origin)
+  const { urls, found, canonicalOrigin } = await collectSitemapUrls(origin)
 
   if (!found || urls.length === 0) {
     return {
@@ -160,7 +167,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
     }
   }
 
-  const { groups, ungroupedCount } = groupUrlsByPath(urls, origin)
+  const { groups, ungroupedCount } = groupUrlsByPath(urls, canonicalOrigin)
 
   consola.info({
     tag: 'crawl-discover',

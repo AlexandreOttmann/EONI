@@ -6,10 +6,18 @@ import { resolveMerchant, rateLimitByKey, buildChatContext } from '../../utils/c
 import { validateAndExtract } from '../../utils/rag-validator'
 import { buildFactBasedPrompt, buildPrompt } from '../../utils/prompt'
 
+// ─── Singleton Anthropic client (R11) ────────────────────────
+let _anthropic: Anthropic | null = null
+function getAnthropicClient(apiKey: string): Anthropic {
+  if (!_anthropic) _anthropic = new Anthropic({ apiKey })
+  return _anthropic
+}
+
 const bodySchema = z.object({
   message: z.string().min(1).max(4000),
   session_id: z.string().uuid().optional(),
-  widget_key: z.string().uuid().optional()
+  widget_key: z.string().uuid().optional(),
+  brand_id: z.string().uuid().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -18,29 +26,38 @@ export default defineEventHandler(async (event) => {
 
   const body = await readValidatedBody(event, bodySchema.parse)
   const { merchantId, widgetKey, merchant } = await resolveMerchant(event, client, body.widget_key)
-  rateLimitByKey(event, widgetKey)
+  await rateLimitByKey(event, widgetKey, client)
 
   const sessionId = body.session_id ?? crypto.randomUUID()
   const startTime = Date.now()
   const merchantInfo = { name: merchant.name, domain: merchant.domain }
 
-  // 1. Get context (products-first, chunks-fallback)
-  const { conversationId, products, chunks, history } = await buildChatContext(
+  // 1. Get context (intent-based retrieval + R7 cache + R5 reranking)
+  const { conversationId, products, chunks, records, history, brandContext, queryIntent, allHighConfidence } = await buildChatContext(
     client,
     merchantId,
     merchantInfo,
     body.message,
     sessionId,
-    config.openaiApiKey as string
+    config.openaiApiKey as string,
+    body.brand_id,
   )
 
-  // 2. Validate + extract facts (Haiku, ~300ms)
-  const validation = await validateAndExtract(
-    config.anthropicApiKey as string,
-    body.message,
-    products,
-    chunks
-  )
+  // 2. R9b: Skip validation when all retrieved results are high-confidence.
+  const validation = allHighConfidence
+    ? {
+        answerable: true,
+        confidence: 'high' as const,
+        facts: [],
+        missing: [],
+      }
+    : await validateAndExtract(
+        config.openaiApiKey as string,
+        body.message,
+        products,
+        chunks,
+        records
+      )
 
   // 3. Structured observability log
   consola.info({
@@ -49,6 +66,8 @@ export default defineEventHandler(async (event) => {
     merchant_id: merchantId,
     products_retrieved: products.length,
     chunks_retrieved: chunks.length,
+    records_retrieved: records.length,
+    query_intent: queryIntent,
     answerable: validation.answerable,
     confidence: validation.confidence,
     missing: validation.missing,
@@ -60,11 +79,20 @@ export default defineEventHandler(async (event) => {
 
   // 4. Handle response based on validation
   if (!validation.answerable) {
-    // Soft fallback — no Sonnet call
-    text = 'I don\'t have enough information from the available sources to answer that question.'
+    // Language-aware fallback via Sonnet
+    const anthropic = getAnthropicClient(config.anthropicApiKey as string)
+    const fallbackResponse = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 256,
+      system: `You are a helpful assistant for ${merchant.name}. Respond in the SAME language as the user's message. Politely tell the user you don't have enough information to answer their question from available sources.`,
+      messages: [{ role: 'user', content: body.message }]
+    })
+    text = fallbackResponse.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
+      .join('')
     if (validation.suggestedProducts?.length) {
-      text += '\n\nHowever, here are some options that might be relevant:\n'
-      text += validation.suggestedProducts
+      text += '\n\n' + validation.suggestedProducts
         .map(p => `- **${p.name}** -- [View details](${p.source})`)
         .join('\n')
     }
@@ -81,18 +109,20 @@ export default defineEventHandler(async (event) => {
         validation.facts,
         products.map(p => ({ name: p.name, price: p.price, currency: p.currency, source_url: p.source_url })),
         history,
-        body.message
+        body.message,
+        brandContext,
+        records
       )
       system = factPrompt.system
       messages = factPrompt.messages
     } else {
       // Chunks-only fallback — use original chunk-based prompt
-      const chunkPrompt = buildPrompt(merchantInfo, chunks, history, body.message)
+      const chunkPrompt = buildPrompt(merchantInfo, chunks, history, body.message, brandContext, records)
       system = chunkPrompt.system
       messages = chunkPrompt.messages
     }
 
-    const anthropic = new Anthropic({ apiKey: config.anthropicApiKey as string })
+    const anthropic = getAnthropicClient(config.anthropicApiKey as string)
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,

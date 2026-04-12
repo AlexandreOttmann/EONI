@@ -21,11 +21,20 @@ const {
   resetDiscovery
 } = useCrawl()
 
+const { activeBrandId } = useActiveBrand()
 const crawlUrl = ref('')
 const isSubmitting = ref(false)
 const step = ref<'input' | 'configure'>('input')
 const selectedGroups = ref<Set<string>>(new Set())
 const pageLimit = ref(100)
+
+// Keep page limit in sync with selected group URL count
+watch(selectedGroups, () => {
+  const count = sitemapGroups.value
+    .filter(g => selectedGroups.value.has(g.pattern))
+    .reduce((sum, g) => sum + g.count, 0)
+  pageLimit.value = Math.min(count || totalSitemapUrls.value, 500)
+}, { deep: true })
 
 async function handleDiscover() {
   if (!crawlUrl.value.trim()) return
@@ -33,12 +42,12 @@ async function handleDiscover() {
   try {
     const result = await discoverSite(crawlUrl.value.trim())
     if (result.sitemap_found && result.groups.length > 0) {
-      // Pre-select all groups
+      // Pre-select all groups — the watch will auto-set pageLimit from the count
       selectedGroups.value = new Set(result.groups.map(g => g.pattern))
       step.value = 'configure'
     } else {
       // No sitemap — start crawl directly
-      await startCrawl(crawlUrl.value.trim(), { limit: pageLimit.value })
+      await startCrawl(crawlUrl.value.trim(), { limit: pageLimit.value, brandId: activeBrandId.value ?? undefined })
       crawlUrl.value = ''
     }
   } catch {
@@ -81,7 +90,8 @@ async function handleStartCrawl() {
 
     await startCrawl(crawlUrl.value.trim(), {
       limit: pageLimit.value,
-      includePatterns
+      includePatterns,
+      brandId: activeBrandId.value ?? undefined
     })
     crawlUrl.value = ''
     step.value = 'input'
@@ -99,7 +109,7 @@ function handleBack() {
 async function handleSkipAndCrawl() {
   isSubmitting.value = true
   try {
-    await startCrawl(crawlUrl.value.trim(), { limit: pageLimit.value })
+    await startCrawl(crawlUrl.value.trim(), { limit: pageLimit.value, brandId: activeBrandId.value ?? undefined })
     crawlUrl.value = ''
     step.value = 'input'
     resetDiscovery()
@@ -147,6 +157,11 @@ onMounted(loadHistory)
     <p class="text-sm text-text-muted mb-6 leading-relaxed">
       Enter your store URL to crawl and index your products for AI-powered search.
     </p>
+
+    <!-- Brand selector -->
+    <div class="mb-4">
+      <DashboardBrandSelector />
+    </div>
 
     <!-- Step 1: URL input -->
     <UCard

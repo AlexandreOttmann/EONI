@@ -2,7 +2,8 @@
 definePageMeta({ layout: 'dashboard' })
 useHead({ title: 'Chat Preview' })
 
-const { messages, sources, isStreaming, error, currentSessionId, savedSessions, loadSession, send, stop, reset } = useChat()
+const { activeBrandId } = useActiveBrand()
+const { messages, sources, isStreaming, error, currentSessionId, savedSessions, loadSession, send, stop, reset } = useChat({ brandId: activeBrandId })
 const { renderMarkdown } = useMarkdown()
 
 const input = ref('')
@@ -51,14 +52,17 @@ watch(
       >
         Chat Preview
       </h1>
-      <UButton
-        label="New conversation"
-        icon="i-heroicons-plus"
-        variant="outline"
-        color="neutral"
-        size="sm"
-        @click="reset"
-      />
+      <div class="flex items-center gap-3">
+        <DashboardBrandSelector />
+        <UButton
+          label="New conversation"
+          icon="i-heroicons-plus"
+          variant="outline"
+          color="neutral"
+          size="sm"
+          @click="reset"
+        />
+      </div>
     </div>
 
     <div class="flex gap-4 flex-1 min-h-0">

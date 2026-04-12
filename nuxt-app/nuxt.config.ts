@@ -23,7 +23,10 @@ export default defineNuxtConfig({
     cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
     cloudflareCrawlApiToken: process.env.CLOUDFLARE_CRAWL_API_TOKEN ?? '',
     supabaseUrl: process.env.SUPABASE_URL ?? '',
-    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    public: {
+      environment: 'development'
+    }
   },
 
   compatibilityDate: '2025-01-15',

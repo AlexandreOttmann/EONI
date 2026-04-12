@@ -12,7 +12,7 @@ interface ChatMessage {
   content: string
 }
 
-export function useChat() {
+export function useChat(options?: { brandId?: Ref<string | null> }) {
   const toast = useToast()
   const { merchant } = useMerchantConfig()
 
@@ -67,10 +67,11 @@ export function useChat() {
     const assistantIdx = messages.value.length - 1
 
     try {
-      const body: ChatStreamRequest = {
+      const body: ChatStreamRequest & { brand_id?: string } = {
         message: text,
         session_id: currentSessionId.value,
-        widget_key: widgetKey
+        widget_key: widgetKey,
+        ...(options?.brandId?.value ? { brand_id: options.brandId.value } : {})
       }
 
       const response = await fetch('/api/chat/stream', {

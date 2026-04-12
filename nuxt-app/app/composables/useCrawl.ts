@@ -105,6 +105,7 @@ export function useCrawl() {
     limit?: number
     includePatterns?: string[]
     excludePatterns?: string[]
+    brandId?: string
   }) {
     try {
       const { job_id } = await $fetch<StartCrawlResponse>('/api/crawl/start', {
@@ -113,7 +114,8 @@ export function useCrawl() {
           url,
           limit: options?.limit,
           includePatterns: options?.includePatterns,
-          excludePatterns: options?.excludePatterns
+          excludePatterns: options?.excludePatterns,
+          brand_id: options?.brandId
         }
       })
       startPolling(job_id)

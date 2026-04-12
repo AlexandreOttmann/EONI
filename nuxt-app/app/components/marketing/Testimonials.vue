@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const testimonials = [
   {
-    quote: 'Within a week of adding Synth, our AI chat widget was answering 60% of customer questions automatically. The setup was incredibly simple.',
+    quote: 'Within a week of adding Eoni, our AI chat widget was answering 60% of customer questions automatically. The setup was incredibly simple.',
     name: 'Marie Laurent',
     role: 'CEO, Odysway',
     initials: 'ML'

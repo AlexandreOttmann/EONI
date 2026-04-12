@@ -48,7 +48,7 @@ const currentYear = new Date().getFullYear()
               class="w-7 h-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan"
               aria-hidden="true"
             />
-            <span class="text-sm font-display font-semibold text-text-base">Synth</span>
+            <span class="text-sm font-display font-semibold text-text-base">Eoni</span>
           </div>
           <p class="text-sm text-text-muted leading-relaxed max-w-xs">
             Turn any website into an AI-discoverable, agent-powered storefront.
@@ -82,7 +82,7 @@ const currentYear = new Date().getFullYear()
       <!-- Bottom bar -->
       <div class="border-t border-border-base py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <p class="text-xs text-text-subtle">
-          &copy; {{ currentYear }} Synth. All rights reserved.
+          &copy; {{ currentYear }} Eoni. All rights reserved.
         </p>
         <div class="flex items-center gap-4">
           <a

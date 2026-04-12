@@ -12,7 +12,7 @@ export default defineNitroPlugin(async () => {
   // Recover jobs that have a cf_job_id — Cloudflare submission succeeded, can resume polling
   const { data: recoverable } = await client
     .from('crawl_jobs')
-    .select('id, cf_job_id, merchant_id, url')
+    .select('id, cf_job_id, merchant_id, brand_id, url')
     .eq('status', 'running')
     .not('cf_job_id', 'is', null)
 
@@ -27,6 +27,7 @@ export default defineNitroPlugin(async () => {
         jobId: job.id,
         merchantId: job.merchant_id,
         merchantName: merchant?.name ?? 'Merchant',
+        brandId: job.brand_id ?? null,
         cloudflareAccountId: config.cloudflareAccountId as string,
         cloudflareCrawlApiToken: config.cloudflareCrawlApiToken as string,
         openaiApiKey: config.openaiApiKey as string,

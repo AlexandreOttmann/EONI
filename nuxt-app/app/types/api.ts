@@ -23,9 +23,22 @@ export interface WidgetConfig {
   widget_key?: string
 }
 
+export interface Brand {
+  id: string
+  merchant_id: string
+  name: string
+  domain: string | null
+  description: string | null
+  logo_url: string | null
+  extracted_description: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface CrawlJob {
   id: string
   merchant_id: string
+  brand_id: string | null
   url: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   pages_found: number
@@ -41,25 +54,6 @@ export interface CrawlJob {
   created_at: string
 }
 
-export interface Product {
-  id: string
-  merchant_id: string
-  page_id: string | null
-  crawl_job_id: string
-  name: string
-  description: string | null
-  price: number | null
-  currency: string
-  availability: 'in_stock' | 'out_of_stock' | 'preorder' | 'unknown'
-  sku: string | null
-  category: string | null
-  image_url: string | null
-  source_url: string
-  extra_data: Record<string, unknown>
-  extraction_confidence: 'high' | 'medium' | 'low'
-  missing_fields: string[]
-  created_at: string
-}
 
 export interface Page {
   id: string
@@ -94,6 +88,7 @@ export interface ChunkMetadata {
 export interface Conversation {
   id: string
   merchant_id: string
+  brand_id: string | null
   session_id: string
   source: 'widget' | 'dashboard_preview'
   created_at: string
@@ -205,31 +200,20 @@ export interface ChatStreamRequest {
   message: string
   session_id: string
   widget_key: string
+  brand_id?: string
 }
 
 export interface ChatMessageRequest {
   message: string
   session_id?: string
   widget_key?: string
-}
-
-export interface ChatProductResult {
-  id: string
-  name: string
-  description: string | null
-  price: number | null
-  currency: string
-  availability: string
-  category: string | null
-  source_url: string
-  image_url: string | null
-  similarity: number
+  brand_id?: string
 }
 
 export interface ChatMessageResponse {
   text: string
   sources: Array<{ id: string, content: string, similarity: number }>
-  products: ChatProductResult[]
+  records: Array<{ object_id: string, index_name: string, fields: Record<string, unknown>, similarity: number }>
   message_id: string
   session_id: string
   conversation_id: string
@@ -247,7 +231,7 @@ export interface ChatSourcesEvent {
     metadata?: ChunkMetadata
     similarity: number
   }>
-  products?: ChatProductResult[]
+  records?: Array<{ object_id: string, index_name: string, fields: Record<string, unknown>, similarity: number }>
 }
 
 export interface ChatDoneEvent {
@@ -276,6 +260,131 @@ export interface AnalyticsResponse {
   total_messages: number
   top_questions: Array<{ content: string, count: number }>
   no_answer_rate: number
+}
+
+// ─── Brand route types ────────────────────────────────────────
+
+export interface CreateBrandRequest {
+  name: string
+  domain?: string
+}
+
+export interface UpdateBrandRequest {
+  name?: string
+  domain?: string
+  description?: string
+  logo_url?: string
+}
+
+export interface BrandWithCounts extends Brand {
+  product_count: number
+  chunk_count: number
+}
+
+export interface BrandListResponse {
+  brands: BrandWithCounts[]
+}
+
+export interface BrandDetailResponse {
+  brand: BrandWithCounts
+}
+
+export interface BrandResponse {
+  brand: Brand
+}
+
+// ─── Product types (legacy products table) ────────────────────
+
+export interface Product {
+  id: string
+  merchant_id: string
+  brand_id: string | null
+  name: string
+  description: string | null
+  price: number | null
+  currency: string
+  availability: string
+  category: string | null
+  source_url: string
+  image_url: string | null
+  sku: string | null
+  embedding_model: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ProductsListResponse {
+  products: Product[]
+  total: number
+  page: number
+  limit: number
+}
+
+// ─── Index / Records route types ─────────────────────────────
+
+export interface IndexRecord {
+  id: string
+  merchant_id: string
+  brand_id: string | null
+  index_name: string
+  object_id: string
+  fields: Record<string, unknown>
+  searchable_text: string
+  created_at: string
+  updated_at: string
+}
+
+export interface IndexSummary {
+  indexName: string
+  count: number
+  updatedAt: string
+}
+
+export interface IndexesListResponse {
+  indexes: IndexSummary[]
+}
+
+export interface CreateIndexRequest {
+  name: string
+}
+
+export interface CreateIndexResponse {
+  indexName: string
+  createdAt: string
+}
+
+export interface IndexRecordsListResponse {
+  records: Omit<IndexRecord, 'searchable_text'>[]
+  total: number
+}
+
+export interface UpsertRecordRequest {
+  fields: Record<string, unknown>
+  brand_id?: string
+}
+
+export interface BatchRecordItem {
+  objectID: string
+  [key: string]: unknown
+}
+
+export interface BatchUpsertResponse {
+  taskID: string
+  indexName: string
+  objectsCount: number
+  status: 'processed'
+}
+
+export interface DeleteRecordResponse {
+  objectId: string
+  indexName: string
+  status: 'deleted'
+}
+
+export interface ClearIndexResponse {
+  indexName: string
+  deletedCount: number
+  status: 'cleared'
 }
 
 // ─── Error type ───────────────────────────────────────────────

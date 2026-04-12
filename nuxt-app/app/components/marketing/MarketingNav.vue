@@ -70,13 +70,13 @@ onUnmounted(() => {
       <NuxtLink
         to="/"
         class="flex items-center gap-2"
-        aria-label="Synth homepage"
+        aria-label="Eoni homepage"
       >
         <div
           class="h-7 w-7 rounded-lg bg-gradient-to-br from-accent-violet to-accent-cyan"
           aria-hidden="true"
         />
-        <span class="text-sm font-display font-semibold text-text-base">Synth</span>
+        <span class="text-sm font-display font-semibold text-text-base">Eoni</span>
       </NuxtLink>
 
       <!-- Center nav links (desktop) -->

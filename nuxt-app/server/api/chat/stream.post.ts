@@ -6,10 +6,19 @@ import { resolveMerchant, rateLimitByKey, buildChatContext } from '../../utils/c
 import { validateAndExtract } from '../../utils/rag-validator'
 import { buildFactBasedPrompt, buildPrompt } from '../../utils/prompt'
 
+// ─── Singleton Anthropic client (R11) ────────────────────────
+// Avoid constructing a new client on every request; reuse across handler calls.
+let _anthropic: Anthropic | null = null
+function getAnthropicClient(apiKey: string): Anthropic {
+  if (!_anthropic) _anthropic = new Anthropic({ apiKey })
+  return _anthropic
+}
+
 const bodySchema = z.object({
   message: z.string().min(1).max(4000),
   session_id: z.string().min(1),
-  widget_key: z.string().uuid().optional()
+  widget_key: z.string().uuid().optional(),
+  brand_id: z.string().uuid().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -18,7 +27,7 @@ export default defineEventHandler(async (event) => {
 
   const body = await readValidatedBody(event, bodySchema.parse)
   const { merchantId, widgetKey, merchant } = await resolveMerchant(event, client, body.widget_key)
-  rateLimitByKey(event, widgetKey)
+  await rateLimitByKey(event, widgetKey, client)
 
   const stream = createEventStream(event)
 
@@ -27,23 +36,34 @@ export default defineEventHandler(async (event) => {
       const startTime = Date.now()
       const merchantInfo = { name: merchant.name, domain: merchant.domain }
 
-      // 1. Get context (products-first, chunks-fallback)
-      const { conversationId, products, chunks, history } = await buildChatContext(
+      // 1. Get context (intent-based retrieval + R7 cache + R5 reranking)
+      const { conversationId, products, chunks, records, history, brandContext, queryIntent, allHighConfidence } = await buildChatContext(
         client,
         merchantId,
         merchantInfo,
         body.message,
         body.session_id,
-        config.openaiApiKey as string
+        config.openaiApiKey as string,
+        body.brand_id,
       )
 
-      // 2. Validate + extract facts (Haiku, ~300ms)
-      const validation = await validateAndExtract(
-        config.anthropicApiKey as string,
-        body.message,
-        products,
-        chunks
-      )
+      // 2. R9b: Skip validation when all retrieved results are high-confidence.
+      //    Validation will almost certainly pass — this eliminates an LLM call
+      //    for the majority of requests that have clear, high-similarity matches.
+      const validation = allHighConfidence
+        ? {
+            answerable: true,
+            confidence: 'high' as const,
+            facts: [],
+            missing: [],
+          }
+        : await validateAndExtract(
+            config.openaiApiKey as string,
+            body.message,
+            products,
+            chunks,
+            records
+          )
 
       // 3. Structured observability log
       consola.info({
@@ -52,6 +72,8 @@ export default defineEventHandler(async (event) => {
         merchant_id: merchantId,
         products_retrieved: products.length,
         chunks_retrieved: chunks.length,
+        records_retrieved: records.length,
+        query_intent: queryIntent,
         answerable: validation.answerable,
         confidence: validation.confidence,
         missing: validation.missing,
@@ -66,15 +88,33 @@ export default defineEventHandler(async (event) => {
           data: JSON.stringify({ chunks: [], products })
         })
 
-        let fallback = 'I don\'t have enough information from the available sources to answer that question.'
-        if (validation.suggestedProducts?.length) {
-          fallback += '\n\nHowever, here are some options that might be relevant:\n'
-          fallback += validation.suggestedProducts
-            .map(p => `- **${p.name}** -- [View details](${p.source})`)
-            .join('\n')
+        // Generate language-aware fallback via Sonnet
+        const anthropic = getAnthropicClient(config.anthropicApiKey as string)
+        const fallbackStream = anthropic.messages.stream({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 256,
+          system: `You are a helpful assistant for ${merchant.name}. Respond in the SAME language as the user's message. Politely tell the user you don't have enough information to answer their question from available sources.`,
+          messages: [
+            ...history.slice(-6).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+            { role: 'user', content: body.message }
+          ]
+        })
+
+        let fallback = ''
+        for await (const evt of fallbackStream) {
+          if (evt.type === 'content_block_delta' && evt.delta.type === 'text_delta') {
+            fallback += evt.delta.text
+            await stream.push({ event: 'chunk', data: JSON.stringify({ text: evt.delta.text }) })
+          }
         }
 
-        await stream.push({ event: 'chunk', data: JSON.stringify({ text: fallback }) })
+        if (validation.suggestedProducts?.length) {
+          const suggestions = '\n\n' + validation.suggestedProducts
+            .map(p => `- **${p.name}** -- [View details](${p.source})`)
+            .join('\n')
+          fallback += suggestions
+          await stream.push({ event: 'chunk', data: JSON.stringify({ text: suggestions }) })
+        }
 
         // Persist user message
         const { error: userMsgError } = await client.from('messages').insert({
@@ -115,13 +155,15 @@ export default defineEventHandler(async (event) => {
             validation.facts,
             products.map(p => ({ name: p.name, price: p.price, currency: p.currency, source_url: p.source_url })),
             history,
-            body.message
+            body.message,
+            brandContext,
+            records
           )
           system = factPrompt.system
           messages = factPrompt.messages
         } else {
           // Chunks-only fallback — use original chunk-based prompt
-          const chunkPrompt = buildPrompt(merchantInfo, chunks, history, body.message)
+          const chunkPrompt = buildPrompt(merchantInfo, chunks, history, body.message, brandContext, records)
           system = chunkPrompt.system
           messages = chunkPrompt.messages
         }
@@ -131,7 +173,7 @@ export default defineEventHandler(async (event) => {
           data: JSON.stringify({ chunks, products })
         })
 
-        const anthropic = new Anthropic({ apiKey: config.anthropicApiKey as string })
+        const anthropic = getAnthropicClient(config.anthropicApiKey as string)
         const anthropicStream = anthropic.messages.stream({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1024,

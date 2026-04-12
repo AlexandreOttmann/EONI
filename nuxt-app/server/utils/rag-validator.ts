@@ -1,5 +1,13 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { z } from 'zod'
+
+// ─── Singleton OpenAI client (R11) ───────────────────────────
+const clientCache = new Map<string, OpenAI>()
+function getOpenAIClient(apiKey: string): OpenAI {
+  let c = clientCache.get(apiKey)
+  if (!c) { c = new OpenAI({ apiKey }); clientCache.set(apiKey, c) }
+  return c
+}
 
 // ─── Validation schema ──────────────────────────────────────
 
@@ -41,6 +49,18 @@ function formatChunksContext(
   ).join('\n\n')
 }
 
+function formatRecordsContext(
+  records: Array<{ object_id: string, index_name: string, fields: Record<string, unknown>, similarity: number }>
+): string {
+  if (records.length === 0) return ''
+  return records.map((r, i) => {
+    const fields = Object.entries(r.fields)
+      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+      .join(' | ')
+    return `[Record ${i + 1}] ${r.index_name}/${r.object_id} (similarity: ${r.similarity.toFixed(2)})\n${fields}`
+  }).join('\n\n')
+}
+
 // ─── Validation system prompt ───────────────────────────────
 
 const VALIDATION_SYSTEM_PROMPT = `You are a strict fact-checker for an ecommerce assistant. Given a user question and context (products and/or content snippets), you must:
@@ -67,13 +87,14 @@ Return ONLY valid JSON matching this schema:
 // ─── Main validation function ───────────────────────────────
 
 export async function validateAndExtract(
-  anthropicApiKey: string,
+  openaiApiKey: string,
   question: string,
   products: Array<{ name: string, description: string | null, price: number | null, currency: string, source_url: string, similarity: number }>,
-  chunks: Array<{ content: string, similarity: number }>
+  chunks: Array<{ content: string, similarity: number }>,
+  records: Array<{ object_id: string, index_name: string, fields: Record<string, unknown>, similarity: number }> = []
 ): Promise<ValidationResult> {
   // Short-circuit: no context at all — skip LLM call
-  if (products.length === 0 && chunks.length === 0) {
+  if (products.length === 0 && chunks.length === 0 && records.length === 0) {
     return {
       answerable: false,
       confidence: 'low',
@@ -85,27 +106,30 @@ export async function validateAndExtract(
   // Build context for the validator
   const productsCtx = formatProductsContext(products)
   const chunksCtx = formatChunksContext(chunks)
+  const recordsCtx = formatRecordsContext(records)
 
   let contextBlock = ''
   if (productsCtx) contextBlock += `Products:\n${productsCtx}\n\n`
   if (chunksCtx) contextBlock += `Content:\n${chunksCtx}\n\n`
+  if (recordsCtx) contextBlock += `Indexed Records:\n${recordsCtx}\n\n`
 
   const userPrompt = `Question: ${question}\n\nContext:\n${contextBlock}Analyze the context and return your JSON assessment.`
 
-  const anthropic = new Anthropic({ apiKey: anthropicApiKey })
+  const openai = getOpenAIClient(openaiApiKey)
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 512,
-    system: VALIDATION_SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }]
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    max_tokens: 1024,
+    temperature: 0,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: VALIDATION_SYSTEM_PROMPT },
+      { role: 'user', content: userPrompt }
+    ]
   })
 
   // Extract text from response
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('')
+  const text = response.choices[0]?.message?.content ?? ''
 
   // Parse JSON from response — handle potential markdown code blocks
   let jsonText = text.trim()
@@ -118,7 +142,7 @@ export async function validateAndExtract(
   try {
     parsed = validationSchema.parse(JSON.parse(jsonText))
   } catch {
-    // If Haiku returns malformed JSON, default to conservative assessment
+    // If response is malformed JSON, default to conservative assessment
     return {
       answerable: false,
       confidence: 'low',
