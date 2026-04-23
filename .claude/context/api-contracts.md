@@ -23,18 +23,66 @@ All routes live in `nuxt-app/server/api/`. Every route uses Zod for input valida
 | Method | Path | Auth | Status | Description |
 |--------|------|------|--------|-------------|
 | POST | /api/crawl/start | required | ✅ | Trigger Cloudflare /crawl for merchant's domain |
+| POST | /api/crawl/discover | required | ✅ | Fetch sitemap + group URLs by path prefix |
 | GET | /api/crawl/status/[jobId] | required | ✅ | Poll crawl job progress |
 | GET | /api/crawl/jobs | required | ✅ | List merchant's last 20 crawl jobs |
 
+**Discover Request:**
+```typescript
+{
+  url: string        // z.string().url()
+  brand_id?: string  // uuid — when set, same brand-domain guard as /crawl/start
+                     // (rejects with `brand_domain_mismatch` on mismatch; does
+                     // NOT auto-claim — discover is read-only)
+}
+```
+
 **Start Crawl Request:**
 ```typescript
-{ url: string }  // z.string().url()
+{
+  url: string                // z.string().url()
+  limit?: number             // 1..500, default 100
+  includePatterns?: string[] // max 20
+  excludePatterns?: string[] // max 20
+  brand_id?: string          // uuid — optional, enables brand-domain guard
+}
 ```
 
 **Start Crawl Response:**
 ```typescript
-{ job_id: string; status: 'pending' }
+{
+  job_id: string
+  status: 'pending'
+  brand_domain_claimed?: string  // present ONLY when this crawl first-bound
+                                 // the brand's domain (brand.domain was null
+                                 // and has now been set to this value). UI
+                                 // should toast "Brand domain set to ${value}".
+}
 ```
+
+**Brand-domain guard (Phase A):** When `brand_id` is supplied, the server computes the URL's root hostname (`extractRootDomain` in `server/utils/domain.ts` — strips protocol + leading `www.`) and enforces:
+
+- `brand.domain === null` → auto-claim, `UPDATE brands SET domain = <crawl_domain>`, respond with `brand_domain_claimed`.
+- `brand.domain === crawlDomain` → proceed normally.
+- `brand.domain !== crawlDomain` → reject with HTTP 400, `statusMessage: 'brand_domain_mismatch'`, and structured `data`:
+
+  ```typescript
+  interface BrandDomainMismatchError {
+    code: 'brand_domain_mismatch'
+    brand_id: string
+    brand_domain: string         // legacy single-domain field (= brand_domains[0] or '')
+    brand_domains: string[]      // full list of domains bound to the brand (Phase B+)
+    crawl_domain: string         // what the client tried to crawl
+    message: string              // human-readable, safe to show in a modal
+    suggested_brand_name: string // title-cased from crawl_domain, e.g. "Evaneos"
+  }
+  ```
+
+  As of Phase B, the guard checks `brand.domains.includes(crawlDomain)` instead of single-column equality. Auto-claim on first crawl writes `domains = [crawlDomain]`. Both `brand_domain` and `brand_domains` are returned in the error payload; new clients should prefer `brand_domains`.
+
+  The frontend catches `error.data?.code === 'brand_domain_mismatch'` and opens a recovery modal offering to create a new brand with `name = suggested_brand_name` and `domain = crawl_domain`.
+
+When `brand_id` is not supplied, the guard is skipped and nullable-brand crawls proceed as before.
 
 **Crawl Status Response:**
 ```typescript
@@ -48,6 +96,65 @@ All routes live in `nuxt-app/server/api/`. Every route uses Zod for input valida
 ```
 
 **Behavior:** `POST /api/crawl/start` returns immediately with `job_id`. Background `processJob()` runs fire-and-forget: calls Cloudflare /crawl, chunks markdown, calls OpenAI embeddings, stores chunks with pgvector embeddings. Returns 409 if a pending/running job already exists.
+
+### POST /api/crawl/jobs/[id]/reassign-brand
+
+Move an existing crawl job (and all its pages, chunks, records) from its current brand to a different brand under the same merchant. Phase B.
+
+**Request:**
+```typescript
+{ target_brand_id: string }  // uuid, must belong to the same merchant
+```
+
+**Success (200):**
+```typescript
+{
+  job_id: string
+  target_brand_id: string
+  counts: { pages: number, chunks: number, records: number }
+}
+```
+
+**Errors:**
+- `400 brand_domain_mismatch` — target brand's `domains` array does not include the crawl job's root domain. Payload is the same `BrandDomainMismatchError` shape used by `/api/crawl/start`.
+- `404` — crawl job not found or owned by a different merchant.
+
+Implemented on top of the `reassign_crawl_brand` Postgres RPC (single-transaction move + `query_cache` flush).
+
+---
+
+## Brand Routes
+
+| Method | Path | Auth | Status | Description |
+|--------|------|------|--------|-------------|
+| GET | /api/brands | required | ✅ | List merchant's brands |
+| POST | /api/brands | required | ✅ | Create brand |
+| GET | /api/brands/[id] | required | ✅ | Get brand by id |
+| PATCH | /api/brands/[id] | required | ✅ | Update brand |
+| DELETE | /api/brands/[id] | required | ✅ | Delete brand |
+
+**POST /api/brands body (Phase B):**
+```typescript
+{
+  name: string
+  domains?: string[]  // preferred: max 20, normalized + deduped server-side
+  domain?: string     // legacy convenience: mapped to `domains = [domain]` if domains absent
+  description?: string
+  logo_url?: string
+}
+```
+Writes to the `brands.domains` array column. `brands.domain` is a generated column (`GENERATED ALWAYS AS (domains[1]) STORED`) and is read-only.
+
+**PATCH /api/brands/[id] body (Phase B):**
+```typescript
+{
+  name?: string
+  domains?: string[]  // preferred: max 20, normalized via extractRootDomain + deduped
+  domain?: string     // legacy: accepted for back-compat, maps to domains = [domain]
+  description?: string
+  logo_url?: string
+}
+```
 
 ---
 
@@ -146,7 +253,8 @@ Algolia-style push indexing API. Auth: session (`serverSupabaseUser`) required f
 
 | Method | Path | Status | Description |
 |--------|------|--------|-------------|
-| GET | /api/indexes | ✅ | List all indexes with count + updatedAt |
+| GET | /api/indexes | ✅ | List indexes (optionally brand-scoped) with count + updatedAt |
+| POST | /api/indexes | ✅ | Create index for `(merchant_id, brand_id, name)` |
 | GET | /api/indexes/:indexName/records | ✅ | Paginated record list with optional search |
 | PUT | /api/indexes/:indexName/records/:objectId | ✅ | Full upsert + re-embed |
 | PATCH | /api/indexes/:indexName/records/:objectId | ✅ | Partial field merge + re-embed |
@@ -154,13 +262,23 @@ Algolia-style push indexing API. Auth: session (`serverSupabaseUser`) required f
 | DELETE | /api/indexes/:indexName/records/:objectId | ✅ | Delete one record + its edges |
 | DELETE | /api/indexes/:indexName/records | ✅ | Clear entire index for this merchant |
 
+**GET /api/indexes query params (Phase B):**
+- `brand_id` (uuid, optional) — filter to indexes scoped to this brand. Omit to return all.
+
 **GET /api/indexes response:**
 ```typescript
-{ indexes: Array<{ indexName: string, count: number, updatedAt: string }> }
+{ indexes: Array<{ indexName: string, brandId: string | null, count: number, updatedAt: string }> }
+```
+
+**POST /api/indexes body (Phase B):**
+```typescript
+{ name: string, brand_id: string }  // brand_id is REQUIRED and ownership-validated
 ```
 
 **GET /api/indexes/:indexName/records query params:**
 - `page` (default 1), `limit` (default 24, max 100), `search` (ilike on searchable_text)
+- `brand_id` (uuid, optional) — filter records by top-level brand_id column
+- `category` (string, optional) — filter records by `fields->>category` jsonb text value
 
 **GET /api/indexes/:indexName/records response:**
 ```typescript

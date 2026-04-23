@@ -27,6 +27,12 @@ export interface Brand {
   id: string
   merchant_id: string
   name: string
+  /** Full list of domains this brand owns. Write path. */
+  domains: string[]
+  /**
+   * Primary (first) domain — since migration 0039 this is a generated
+   * Postgres column (`domains[1]`). Read-only; writes must go via `domains`.
+   */
   domain: string | null
   description: string | null
   logo_url: string | null
@@ -184,6 +190,47 @@ export interface DiscoverResponse {
 export interface StartCrawlResponse {
   job_id: string
   status: 'pending'
+  /**
+   * Set when this crawl was the first to bind a brand to a domain.
+   * The UI should toast "Brand domain set to ${brand_domain_claimed}".
+   */
+  brand_domain_claimed?: string
+}
+
+/**
+ * Structured error data for HTTP 400 `brand_domain_mismatch` on
+ * POST /api/crawl/start, POST /api/crawl/discover, and
+ * POST /api/crawl/jobs/[id]/reassign-brand. Attached to the H3
+ * error's `data` field.
+ *
+ * `brand_domains` is set by endpoints that surface the full multi-domain
+ * list (reassign-brand since Phase B4). Older endpoints still set only
+ * `brand_domain` — the frontend should prefer `brand_domains` when present.
+ */
+export interface BrandDomainMismatchError {
+  code: 'brand_domain_mismatch'
+  brand_id: string
+  brand_domain: string
+  brand_domains?: string[]
+  crawl_domain: string
+  message: string
+  suggested_brand_name: string
+}
+
+// ─── Reassign crawl brand ─────────────────────────────────────
+
+export interface ReassignCrawlBrandRequest {
+  target_brand_id: string
+}
+
+export interface ReassignCrawlBrandResponse {
+  job_id: string
+  target_brand_id: string
+  counts: {
+    pages: number
+    chunks: number
+    records: number
+  }
 }
 
 export interface CrawlStatusResponse {
@@ -266,12 +313,18 @@ export interface AnalyticsResponse {
 
 export interface CreateBrandRequest {
   name: string
+  /** Convenience single-domain input. Wrapped to `domains: [domain]` server-side. */
   domain?: string
+  /** Preferred multi-domain input. Normalized server-side via `extractRootDomain`. */
+  domains?: string[]
 }
 
 export interface UpdateBrandRequest {
   name?: string
+  /** Legacy — prefer `domains`. Still accepted for single-domain callers. */
   domain?: string
+  /** Preferred multi-domain write path. Max 20 entries. */
+  domains?: string[]
   description?: string
   logo_url?: string
 }

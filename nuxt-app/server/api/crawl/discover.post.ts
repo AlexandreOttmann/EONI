@@ -1,10 +1,12 @@
 import { z } from 'zod'
-import { serverSupabaseUser } from '#supabase/server'
+import { serverSupabaseUser, serverSupabaseServiceRole } from '#supabase/server'
 import { consola } from 'consola'
 import type { DiscoverResponse, SitemapGroup } from '~/types/api'
+import { extractRootDomain, titleCaseFromDomain, InvalidUrlError } from '../../utils/domain'
 
 const bodySchema = z.object({
-  url: z.string().url()
+  url: z.string().url().refine(u => /^https?:\/\//i.test(u), 'URL must use http or https'),
+  brand_id: z.string().uuid().optional()
 })
 
 /**
@@ -151,6 +153,50 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
   if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
 
   const body = await readValidatedBody(event, bodySchema.parse)
+
+  // Brand-domain guard: reject early if the URL's root domain isn't in the
+  // selected brand's `domains` array. Skip entirely when no brand_id is given.
+  if (body.brand_id) {
+    const client = await serverSupabaseServiceRole(event)
+    const { data: brand } = await client
+      .from('brands')
+      .select('id, name, domains')
+      .eq('id', body.brand_id)
+      .eq('merchant_id', user.sub) // multi-tenancy filter — do not remove
+      .maybeSingle()
+
+    if (!brand) throw createError({ statusCode: 404, message: 'Brand not found' })
+
+    let crawlDomain: string
+    try {
+      crawlDomain = extractRootDomain(body.url)
+    } catch (err) {
+      if (err instanceof InvalidUrlError) {
+        throw createError({ statusCode: 400, message: 'Invalid URL' })
+      }
+      throw err
+    }
+
+    const brandDomains: string[] = Array.isArray(brand.domains) ? brand.domains : []
+
+    // Discover is read-only — no auto-claim. Empty domains pass through, so
+    // a not-yet-bound brand can still run discover. Once the brand has any
+    // domain(s), crawl domain must be a member.
+    if (brandDomains.length > 0 && !brandDomains.includes(crawlDomain)) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'brand_domain_mismatch',
+        data: {
+          code: 'brand_domain_mismatch',
+          brand_id: body.brand_id,
+          brand_domain: brandDomains[0] ?? '',
+          crawl_domain: crawlDomain,
+          message: `This URL belongs to ${crawlDomain} but the selected brand "${brand.name}" is bound to ${brandDomains.join(', ')}. Create a new brand for ${crawlDomain}, or switch the active brand.`,
+          suggested_brand_name: titleCaseFromDomain(crawlDomain)
+        }
+      })
+    }
+  }
 
   const origin = new URL(body.url).origin
 

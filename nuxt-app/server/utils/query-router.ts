@@ -3,7 +3,26 @@ import { consola } from 'consola'
 
 export type QueryIntent = 'product' | 'brand' | 'support' | 'general' | 'aggregation'
 
+/**
+ * Router output shape. `targetIndex` is the records index the query should
+ * search, or `null` to search across all indexes (caller decides scope).
+ */
+export interface RouterResult {
+  intent: QueryIntent
+  targetIndex: string | null
+}
+
 const VALID_INTENTS = new Set<string>(['product', 'brand', 'support', 'general', 'aggregation'])
+
+// Maps a classified intent to the records index it should search.
+// `null` means "don't filter by index_name" (search across all indexes).
+const INTENT_TO_INDEX: Record<QueryIntent, string | null> = {
+  product:     'products',
+  support:     'support',
+  brand:       null, // brand intent answers from brands.description, not records
+  aggregation: null, // aggregation spans all indexes (B3)
+  general:     null, // unclear — let vector search see everything
+}
 
 // ─── Singleton OpenAI client (R11) ───────────────────────────
 const clientCache = new Map<string, OpenAI>()
@@ -47,11 +66,10 @@ function classifyByRules(query: string): QueryIntent | null {
 }
 
 /**
- * Classify user query intent.
- * First tries a fast rule-based path (R9a); falls back to GPT-4o-mini for
- * ambiguous queries. Language-agnostic — works for any ecommerce site.
+ * Internal: classify user query intent via rules → LLM fallback.
+ * Shared by both `routeQuery` and the legacy `classifyIntent` wrapper.
  */
-export async function classifyIntent(
+async function classifyIntentInternal(
   query: string,
   openaiApiKey?: string,
   merchantName?: string
@@ -100,4 +118,34 @@ Respond with only the label.`
     consola.error('[query-router] Classification failed:', err)
     return 'general'
   }
+}
+
+/**
+ * Route a query: classify intent and map it to a target records index.
+ * The caller is responsible for verifying that the target index exists
+ * for the current (merchant, brand) scope — this router does not touch
+ * the database.
+ */
+export async function routeQuery(
+  query: string,
+  openaiApiKey?: string,
+  merchantName?: string
+): Promise<RouterResult> {
+  const intent = await classifyIntentInternal(query, openaiApiKey, merchantName)
+  return {
+    intent,
+    targetIndex: INTENT_TO_INDEX[intent],
+  }
+}
+
+/**
+ * Legacy wrapper: preserves the pre-RouterResult API for any callers outside
+ * `chat.ts`. New callers should use `routeQuery` instead.
+ */
+export async function classifyIntent(
+  query: string,
+  openaiApiKey?: string,
+  merchantName?: string
+): Promise<QueryIntent> {
+  return (await routeQuery(query, openaiApiKey, merchantName)).intent
 }

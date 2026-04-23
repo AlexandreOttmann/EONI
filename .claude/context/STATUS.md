@@ -1,6 +1,6 @@
 # Ecommerce AI SaaS — Build Status
 
-Last updated: 2026-03-23
+Last updated: 2026-04-12
 
 > **New agent?** Read this file first. Then read the files listed under
 > "Required Context" for your specific task. Do NOT redo completed work.
@@ -117,7 +117,7 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 
 ## Current Focus
 
-Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Crawl Pipeline backend complete. Phase 1.3 RAG Chat backend complete. Anti-hallucination RAG refactor Part A (structured extraction) and Part B (validation pipeline) complete on `feat/anti-hallucination-rag`. Push Indexing API security audit findings S1/S2/S3 resolved. RAG audit P0+P2 fixes complete; RAG audit P1 fixes complete (R5 reranker, R7 query cache, R9 intent fast-path + validation skip, R12 tiktoken). Next: security-auditor reviews products table RLS + match_products permissions + validator input sanitization; then playwright-tester E2E coverage.
+Phase 1a Marketing Surface complete. Phase 1.1 Foundation complete. Phase 1.2 Crawl Pipeline backend complete. Phase 1.3 RAG Chat backend complete. Anti-hallucination RAG refactor Part A+B complete. Push Indexing API security audit findings S1/S2/S3 resolved. RAG audit P0+P1+P2 fixes complete. Brands UX Phase A (brand-domain crawl guard) complete. **Brands architecture Phase B+C complete on `feat/brands-phase-bc`** — per-brand indexes, domains[] array on brands, cross-brand reassignment RPC, content-typed extraction (product/faq/support), intent-driven index routing. Typecheck clean, security review approved with zero blockers, 17 new Playwright E2E specs parse cleanly. Next priority TBD — see Up Next.
 
 ### What exists (Phase 1a — Marketing Surface)
 
@@ -358,9 +358,58 @@ Notes:
 - `nuxt-app/server/api/indexes/[indexName]/records/[objectId].delete.ts` — delete one record + edges
 - `nuxt-app/server/api/indexes/[indexName]/records/index.delete.ts` — clear index
 - `nuxt-app/server/utils/chat.ts` — `buildChatContext()` now calls `match_records()` + fetches 1-hop `record_edges` neighbors; returns `records: RecordResult[]` in ChatContext
+
+### What exists (Brands UX Redesign — Phase A server: brand-domain crawl guard)
+
+- `nuxt-app/server/utils/domain.ts` — NEW: pure helpers `extractRootDomain(url)` (parses URL, lowercases hostname, strips leading `www.`, throws `InvalidUrlError` on bad input) and `titleCaseFromDomain(domain)` (strips TLD incl. common two-part TLDs like `co.uk`, title-cases remaining labels with `-`/`_` as word separators). No external deps; `tldts` not installed so native URL parsing is used.
+- `nuxt-app/server/api/crawl/start.post.ts` — enforces 1 brand = 1 domain: when `brand_id` is supplied, fetches `id,name,domain` in a single query (consolidated the prior ownership-only check), computes `crawlDomain = extractRootDomain(body.url)`, then either (a) auto-claims `brands.domain = crawlDomain` on null and returns `brand_domain_claimed` in the success response, or (b) throws HTTP 400 `brand_domain_mismatch` with structured `data` (brand_id, brand_domain, crawl_domain, message, suggested_brand_name). Skipped entirely when `brand_id` is absent. All brand queries still filter by `merchant_id`.
+- `nuxt-app/server/api/crawl/discover.post.ts` — added optional `brand_id` to request body and applies the same mismatch guard (read-only, no auto-claim since discover does not mutate). Rejects fast so the UI can surface the recovery modal before a sitemap fetch.
+- `nuxt-app/app/types/api.ts` — `StartCrawlResponse` now has optional `brand_domain_claimed?: string`; new `BrandDomainMismatchError` interface documents the error shape for the frontend error-handler.
+- `pnpm typecheck` passes clean (0 errors).
+
+### What exists (Brands UX Redesign — Phase A frontend)
+
+- `nuxt-app/app/composables/useCrawl.ts` — `startCrawl()` now returns the full `StartCrawlResponse` and auto-toasts on `brand_domain_claimed`; both `startCrawl()` and `discoverSite()` re-throw `brand_domain_mismatch` errors untouched so the page can inspect `error.data?.code`; new `extractBrandDomainMismatch(err)` helper returns the typed payload or `null`; `discoverSite()` now forwards `brand_id` to the server.
+- `nuxt-app/app/pages/dashboard/crawl.vue` — wraps discover / start / skip flows in try/catch; opens a new `UModal` recovery dialog showing `{brand_domain, crawl_domain, message}` with a primary "Create brand for {crawl_domain}" button that calls `createBrand({ name, domain })`, switches active brand via `setActiveBrand()`, and re-runs the original action on the next tick.
+- `nuxt-app/app/pages/dashboard/brands.vue` — stripped the inline edit modal and all edit-related state/handlers (`showEditModal`, `editBrand`, `openEdit`, `handleSave`, `useExtractedDescription`, `handleDelete`). Card click now `navigateTo(\`/dashboard/brands/\${brand.id}\`)` via a `role="button"` + keyboard handler. Create modal now includes an inline "we'll use this to verify your crawl URLs" hint on the domain field.
+- `nuxt-app/app/pages/dashboard/brands/[id].vue` — NEW brand detail page with `UTabs` (Overview / Indexes / Crawls / Products). Resolves the brand from the `useBrands()` cache via `route.params.id` and throws a 404 via `createError` once the list fetch has settled. Overview tab hosts the edit form (name / domain / description with AI extracted_description suggestion UI / logo) and a destructive-action confirm modal for delete. Indexes tab reuses the existing card grid (all merchant indexes — server endpoint has no `brand_id` filter in Phase A). Crawls tab fetches `/api/crawl/jobs` then filters client-side on `brand_id` (endpoint does not support a server-side filter) and renders a `UTable` matching the `crawl.vue` history table. Products tab fetches `/api/indexes/products/records` with `limit=100` + optional search, filters client-side on `brand_id` (records endpoint's zod schema strips unknown query keys so a server-side `brand_id` is silently dropped today), and opens `DashboardRecordEditPanel` on card click with refresh on `@updated`.
+- `nuxt-app/app/pages/dashboard/products.vue` — wired `DashboardRecordEditPanel` via `v-model:open`, added click / keyboard handlers on the product `UCard`, `@click.stop` on the source-url anchor so it doesn't bubble into the panel, and a new neutral brand `UBadge` with building-storefront icon next to the category/availability badges (looked up by id from the `useBrands()` cache; hidden when `brand_id` is null).
+- `nuxt-app/app/components/dashboard/RecordEditPanel.vue` — displays a read-only brand chip (`UBadge` with building-storefront icon, primary/subtle) at the top of the panel body; resolves the brand via `useBrands()` by `record.brand_id` and hides cleanly when null. Also quoted the `updated` emit key for stylistic-quote-props consistency.
+- `nuxt-app/app/components/dashboard/Sidebar.vue` — removed `Indexes` and `Products` from the nav list; `/dashboard/indexes` and `/dashboard/products` routes remain live so bookmarks still resolve.
+- `pnpm typecheck` passes clean (0 errors). `pnpm lint` on the repo still reports pre-existing stylistic debt (104 errors across server/tests/unrelated pages) — zero errors in any file touched by this change.
 - `nuxt-app/server/utils/prompt.ts` — both `buildPrompt()` and `buildFactBasedPrompt()` accept optional `records` param; `buildIndexedRecordsSection()` injects "Indexed Records" context block
 - `nuxt-app/server/api/chat/stream.post.ts` + `message.post.ts` — wired: destructure `records` from context, pass to prompt builders, log `records_retrieved`
 - `nuxt-app/app/types/api.ts` — added `IndexRecord`, `IndexSummary`, `IndexesListResponse`, `IndexRecordsListResponse`, `UpsertRecordRequest`, `BatchRecordItem`, `BatchUpsertResponse`, `DeleteRecordResponse`, `ClearIndexResponse`
+
+### What exists (Brands architecture — Phase B+C: per-brand indexes, domains[], content-typed extraction, cross-brand reassignment)
+
+Branch: `feat/brands-phase-bc` — ✅ typecheck clean, ✅ security review approved (zero blockers), ✅ 17 new Playwright E2E specs parse cleanly.
+
+**Schema:**
+- `nuxt-app/supabase/migrations/0037_indexes_brand_scope.sql` — adds `brand_id uuid REFERENCES brands(id) ON DELETE CASCADE` (nullable) to `indexes`; unique constraint becomes `UNIQUE NULLS NOT DISTINCT (merchant_id, brand_id, name)`; adds `indexes_brand_id_idx`.
+- `nuxt-app/supabase/migrations/0039_brands_domains_array.sql` — drops legacy `brands.domain text`; re-adds as `GENERATED ALWAYS AS (domains[1]) STORED`; adds `domains text[] NOT NULL DEFAULT '{}'` as authoritative write path; GIN index `brands_domains_gin_idx`.
+- `nuxt-app/supabase/migrations/0040_reassign_crawl_brand.sql` — `SECURITY DEFINER` RPC `reassign_crawl_brand(p_merchant_id uuid, p_crawl_job_id uuid, p_target_brand_id uuid) RETURNS jsonb`. Moves pages/chunks/records/crawl_jobs between brands in a single transaction, flushes `query_cache` for the merchant. REVOKE from public, GRANT to service_role only. (Note: `match_records` did not need a migration — the RPC already had `p_index_name DEFAULT NULL` from 0015/0018.)
+
+**API routes:**
+- `GET /api/indexes` — accepts `?brand_id=<uuid>` query param, returns per-row `brandId` in response.
+- `POST /api/indexes` — now requires `brand_id` in body (uuid, ownership-validated).
+- `PATCH /api/brands/[id]` — accepts `domains: string[]` (max 20, normalized via `extractRootDomain`, deduped). Legacy `domain: string` still accepted and mapped to `domains = [domain]` server-side.
+- `POST /api/brands` — writes to `domains` instead of the now-generated `domain` column. Still accepts single `domain` as convenience input.
+- `POST /api/crawl/start` + `POST /api/crawl/discover` — brand-domain guard now checks `brand.domains.includes(crawlDomain)`. Auto-claim on first crawl writes `domains = [crawlDomain]`. Mismatch error payload now includes `brand_domains: string[]` alongside the existing `brand_domain: string`.
+- **NEW** `POST /api/crawl/jobs/[id]/reassign-brand` — body `{ target_brand_id: string }`; success `{ job_id, target_brand_id, counts: { pages, chunks, records } }`; errors 400 `brand_domain_mismatch` with same shape, 404 on missing/wrong-owner. Uses `UntypedRpcClient` cast until `database.types.ts` is regenerated.
+
+**Server behavior:**
+- `nuxt-app/server/utils/crawl-worker.ts` — routes extracted records to `products`, `faq`, or `support` index based on `pageType` from content-classifier. Per-batch lazy upsert ensures `indexes` row exists for `(merchant_id, brand_id, name)`. Brand/other page types produce zero records (chunks still land).
+- `nuxt-app/server/utils/extraction-prompts.ts` — new `extractRecordsForPage(page, pageType, openai)` dispatcher; three prompts: product (existing), `FAQ_EXTRACTION_PROMPT`, `SUPPORT_EXTRACTION_PROMPT`. FAQ/support gate on `markdown.length >= 200` to cap cost. Zod-validated output.
+- `nuxt-app/server/utils/record-processor.ts` — `buildSearchableText(indexName, objectId, fields)` has product/faq/support field-ordering branches.
+- `nuxt-app/server/utils/query-router.ts` — new `routeQuery(query, ...): Promise<RouterResult>` returning `{ intent, targetIndex }`. Legacy `classifyIntent` retained as thin wrapper. `INTENT_TO_INDEX` maps `product→'products'`, `support→'support'`, `brand/aggregation/general→null`.
+- `nuxt-app/server/utils/chat.ts` — uses `routeQuery`; passes `targetIndex` to `list_records_for_aggregation` and `match_records_hybrid` RPCs. Falls back to `null` (search all) when no `indexes` row exists for `(merchant, brand, targetIndex)`.
+
+**Record shapes (new):**
+- `faq`: `{ question: string, answer: string, topic?: string, source_url: string, page_context?: string }`
+- `support`: `{ topic: string, body: string, policy_type: 'shipping'|'returns'|'warranty'|'privacy'|'terms'|'contact'|'other', source_url: string, page_context?: string }`
+
+**Housekeeping remaining:** regenerate `nuxt-app/app/types/database.types.ts` from Supabase when a type-gen script is added, to remove the `UntypedRpcClient` cast in `server/api/crawl/jobs/[id]/reassign-brand.post.ts`.
 
 ---
 
@@ -373,6 +422,9 @@ Notes:
 5. ~~**backend-developer** -> POST /api/chat/stream SSE endpoint (Phase 1.3)~~ ✅ done
 6. ~~**frontend-developer** -> Wire crawl page to real API endpoints~~ ✅ done — `useCrawl.ts` composable + `crawl.vue` wired
 7. ~~**frontend-developer** -> Wire remaining dashboard pages to real API endpoints (chat, merchant config, analytics)~~ ✅ done — all pages wired, useChat + useMerchantConfig composables, chat.vue page
+8. ~~**backend-developer** -> Brands architecture Phase B+C (per-brand indexes, domains[], reassignment RPC, content-typed extraction)~~ ✅ done on `feat/brands-phase-bc`
+
+**Next priority: TBD.** Phase B+C closes out the brands architecture work. Open candidates from earlier in STATUS.md: Phase 1.4 Widget (Vite build, Shadow DOM, SSE chat, script-tag generation, GDPR cookie consent — all still ⬜); `database.types.ts` regeneration housekeeping (removes `UntypedRpcClient` cast in reassign-brand route); Phase 2 SSG/MCP/llms.txt work. Product-manager to sequence based on user priorities.
 
 ---
 
@@ -399,6 +451,7 @@ Notes:
 | main | stable | — |
 | feat/dashboard-wiring | ready for review | frontend |
 | feat/anti-hallucination-rag | Part A+B complete | backend |
+| feat/brands-phase-bc | Phase B+C complete, ready for merge | backend + security + tests |
 
 ---
 

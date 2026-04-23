@@ -26,7 +26,8 @@ Multi-brand support. One merchant can have many brands.
 | id | uuid (PK, default gen_random_uuid()) | |
 | merchant_id | uuid (FK merchants, not null) | RLS filter |
 | name | text (not null) | Brand display name |
-| domain | text | Brand website URL |
+| domains | text[] (not null, default '{}') | Authoritative list of root domains bound to this brand (migration 0039). Normalized via `extractRootDomain`, max 20. GIN index `brands_domains_gin_idx`. |
+| domain | text (generated) | `GENERATED ALWAYS AS (domains[1]) STORED` — read-only back-compat view of the primary domain (migration 0039). |
 | description | text | Editable, injected into AI context |
 | logo_url | text | Brand logo |
 | extracted_description | text | Auto-extracted from crawl, shown as suggestion |
@@ -113,6 +114,20 @@ Individual turns in a conversation.
 | confidence_score | float | Similarity score of best chunk match |
 | created_at | timestamptz (default now()) | |
 
+### indexes
+Logical record collections, scoped per brand (migration 0037). One row per `(merchant, brand, name)` tuple.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid (PK) | |
+| merchant_id | uuid (FK merchants, not null) | RLS filter |
+| brand_id | uuid (FK brands, nullable) | ON DELETE CASCADE. Nullable rows represent merchant-global indexes. |
+| name | text (not null) | Index name (e.g. `products`, `faq`, `support`) |
+| created_at / updated_at | timestamptz | |
+
+**UNIQUE:** `(merchant_id, brand_id, name) NULLS NOT DISTINCT` — two rows with the same merchant+name are allowed only if they have distinct brand_ids, and `NULL` brand_id is treated as equal to `NULL`.
+**Index:** `indexes_brand_id_idx`.
+
 ### records
 Push-indexed records (Algolia-style). Arbitrary JSON objects stored with embeddings for semantic search.
 
@@ -158,6 +173,17 @@ Similarity edges between records sharing a field value (category/brand/collectio
 **`match_records()` RPC** (service_role only):
 Takes `query_embedding`, `match_threshold`, `match_count`, `p_merchant_id`, optional `p_index_name`, `p_brand_id`.
 Returns `id`, `object_id`, `index_name`, `fields`, `similarity`.
+
+**`reassign_crawl_brand(p_merchant_id uuid, p_crawl_job_id uuid, p_target_brand_id uuid) RETURNS jsonb`** (migration 0040, `SECURITY DEFINER`, service_role only):
+Moves all pages, chunks, records, and the `crawl_jobs` row itself between brands in a single transaction, then flushes `query_cache` for the merchant. Returns the moved row counts as jsonb.
+
+**Record field shapes by `index_name`:**
+
+| Index | Fields |
+|-------|--------|
+| `products` | Existing product schema (name, description, price, currency, availability, sku, category, image_url, source_url, ...) |
+| `faq` | `{ question: string, answer: string, topic?: string, source_url: string, page_context?: string }` |
+| `support` | `{ topic: string, body: string, policy_type: 'shipping'\|'returns'\|'warranty'\|'privacy'\|'terms'\|'contact'\|'other', source_url: string, page_context?: string }` |
 
 ### rate_limits (internal)
 Persistent rate limiting counters. Replaced in-memory Map in chat.ts.

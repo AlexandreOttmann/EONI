@@ -34,9 +34,40 @@ const UNIT_PATTERNS: Record<string, (v: number) => string> = {
   rating: v => `rated ${v}/5`,
 }
 
-// ─── buildSearchableText (natural language) ──────────────────
+// ─── buildSearchableText (index-aware) ───────────────────────
+//
+// Entry point used by processRecords. Dispatches on `indexName`:
+//   - products (and unknown): rich natural-language builder (legacy behavior)
+//   - faq:     Q + A + optional topic, pipe-delimited
+//   - support: topic + body + policy_type, pipe-delimited
+//
+// The per-index shapes match the field contract documented in the Phase B+C
+// plan; embedding quality is best when searchable_text mirrors the human
+// reading order of the fields.
 
 export function buildSearchableText(
+  indexName: string,
+  objectId: string,
+  fields: Record<string, unknown>
+): string {
+  switch (indexName) {
+    case 'faq':
+      return [fields.question, fields.answer, fields.topic, objectId]
+        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+        .map(v => v.trim())
+        .join(' | ')
+    case 'support':
+      return [fields.topic, fields.body, fields.policy_type, objectId]
+        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+        .map(v => v.trim())
+        .join(' | ')
+    case 'products':
+    default:
+      return buildProductSearchableText(objectId, fields)
+  }
+}
+
+function buildProductSearchableText(
   objectId: string,
   fields: Record<string, unknown>
 ): string {
@@ -116,8 +147,8 @@ export async function processRecords(
 ): Promise<void> {
   if (records.length === 0) return
 
-  // Build searchable texts
-  const searchableTexts = records.map(r => buildSearchableText(r.objectId, r.fields))
+  // Build searchable texts (index-aware)
+  const searchableTexts = records.map(r => buildSearchableText(r.indexName, r.objectId, r.fields))
 
   // Batch embed in groups of EMBED_BATCH, run batches in parallel
   const batches: string[][] = []

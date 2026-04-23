@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import type { IndexRecordsListResponse } from '~/types/api'
+import type { IndexRecord, IndexRecordsListResponse } from '~/types/api'
+
+type ProductRecord = Omit<IndexRecord, 'searchable_text'>
 
 definePageMeta({ layout: 'dashboard' })
 useHead({ title: 'Products' })
 
 const { activeBrandId } = useActiveBrand()
+const { brands } = useBrands()
 
 const search = ref('')
 const category = ref('__all__')
@@ -21,7 +24,7 @@ const queryParams = computed(() => ({
   limit
 }))
 
-const { data, status } = useFetch<IndexRecordsListResponse>('/api/indexes/products/records', {
+const { data, status, refresh } = useFetch<IndexRecordsListResponse>('/api/indexes/products/records', {
   query: queryParams,
   watch: [queryParams]
 })
@@ -88,6 +91,23 @@ function truncateUrl(url: string): string {
   } catch {
     return url.slice(0, 40)
   }
+}
+
+// Record edit panel
+const selectedRecord = ref<ProductRecord | null>(null)
+const panelOpen = ref(false)
+function openRecord(record: ProductRecord) {
+  selectedRecord.value = record
+  panelOpen.value = true
+}
+
+function brandNameFor(brandId: string | null): string | null {
+  if (!brandId) return null
+  return brands.value.find(b => b.id === brandId)?.name ?? null
+}
+
+async function handleRecordUpdated() {
+  await refresh()
 }
 </script>
 
@@ -181,7 +201,15 @@ function truncateUrl(url: string): string {
             visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } }
           }"
         >
-          <UCard class="h-full flex flex-col">
+          <UCard
+            class="h-full flex flex-col cursor-pointer transition-shadow duration-300 hover:glow-violet"
+            role="button"
+            tabindex="0"
+            :aria-label="`Edit ${record.fields.name as string}`"
+            @click="openRecord(record)"
+            @keydown.enter.prevent="openRecord(record)"
+            @keydown.space.prevent="openRecord(record)"
+          >
             <!-- Image -->
             <div class="w-full h-36 rounded-lg overflow-hidden bg-surface-2 mb-3 flex items-center justify-center">
               <img
@@ -213,6 +241,15 @@ function truncateUrl(url: string): string {
             <!-- Badges -->
             <div class="flex flex-wrap gap-1.5 mt-3">
               <UBadge
+                v-if="brandNameFor(record.brand_id)"
+                variant="subtle"
+                color="neutral"
+                size="xs"
+                icon="i-heroicons-building-storefront"
+              >
+                {{ brandNameFor(record.brand_id) }}
+              </UBadge>
+              <UBadge
                 v-if="record.fields.category"
                 variant="subtle"
                 color="primary"
@@ -235,6 +272,7 @@ function truncateUrl(url: string): string {
               target="_blank"
               rel="noopener noreferrer"
               class="mt-2 text-xs text-text-muted hover:text-accent-violet truncate block transition-colors"
+              @click.stop
             >
               {{ truncateUrl(record.fields.source_url as string) }}
             </a>
@@ -286,5 +324,13 @@ function truncateUrl(url: string): string {
         />
       </div>
     </template>
+
+    <!-- Record edit panel -->
+    <DashboardRecordEditPanel
+      v-model:open="panelOpen"
+      :record="selectedRecord"
+      index-name="products"
+      @updated="handleRecordUpdated"
+    />
   </div>
 </template>

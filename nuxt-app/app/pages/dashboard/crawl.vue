@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { BrandDomainMismatchError } from '~/types/api'
+
 definePageMeta({
   layout: 'dashboard'
 })
@@ -18,15 +20,63 @@ const {
   ungroupedCount,
   isDiscovering,
   discoverSite,
-  resetDiscovery
+  resetDiscovery,
+  extractBrandDomainMismatch
 } = useCrawl()
 
-const { activeBrandId } = useActiveBrand()
+const { activeBrandId, setActiveBrand } = useActiveBrand()
+const { createBrand } = useBrands()
 const crawlUrl = ref('')
 const isSubmitting = ref(false)
 const step = ref<'input' | 'configure'>('input')
 const selectedGroups = ref<Set<string>>(new Set())
 const pageLimit = ref(100)
+
+// Brand-domain mismatch recovery modal state
+const mismatchError = ref<BrandDomainMismatchError | null>(null)
+const mismatchOpen = ref(false)
+const isCreatingBrand = ref(false)
+type PendingAction = { type: 'discover' } | { type: 'start' } | { type: 'skip' }
+const pendingAction = ref<PendingAction | null>(null)
+
+function openMismatchModal(err: BrandDomainMismatchError, action: PendingAction) {
+  mismatchError.value = err
+  pendingAction.value = action
+  mismatchOpen.value = true
+}
+
+function cancelMismatch() {
+  mismatchOpen.value = false
+  mismatchError.value = null
+  pendingAction.value = null
+}
+
+async function confirmCreateBrandAndRetry() {
+  if (!mismatchError.value || !pendingAction.value) return
+  const { suggested_brand_name, crawl_domain } = mismatchError.value
+  const action = pendingAction.value
+  isCreatingBrand.value = true
+  try {
+    const brand = await createBrand({ name: suggested_brand_name, domain: crawl_domain })
+    if (!brand) return
+    setActiveBrand(brand.id)
+    mismatchOpen.value = false
+    mismatchError.value = null
+    pendingAction.value = null
+    // Retry the original action on the next tick so the new active brand
+    // flows through as `brandId` on the retry.
+    await nextTick()
+    if (action.type === 'discover') {
+      await handleDiscover()
+    } else if (action.type === 'start') {
+      await handleStartCrawl()
+    } else {
+      await handleSkipAndCrawl()
+    }
+  } finally {
+    isCreatingBrand.value = false
+  }
+}
 
 // Keep page limit in sync with selected group URL count
 watch(selectedGroups, () => {
@@ -40,7 +90,9 @@ async function handleDiscover() {
   if (!crawlUrl.value.trim()) return
   isSubmitting.value = true
   try {
-    const result = await discoverSite(crawlUrl.value.trim())
+    const result = await discoverSite(crawlUrl.value.trim(), {
+      brandId: activeBrandId.value ?? undefined
+    })
     if (result.sitemap_found && result.groups.length > 0) {
       // Pre-select all groups — the watch will auto-set pageLimit from the count
       selectedGroups.value = new Set(result.groups.map(g => g.pattern))
@@ -50,8 +102,12 @@ async function handleDiscover() {
       await startCrawl(crawlUrl.value.trim(), { limit: pageLimit.value, brandId: activeBrandId.value ?? undefined })
       crawlUrl.value = ''
     }
-  } catch {
-    // Error handled by composable toast
+  } catch (err) {
+    const mismatch = extractBrandDomainMismatch(err)
+    if (mismatch) {
+      openMismatchModal(mismatch, { type: 'discover' })
+    }
+    // Other errors are handled by the composable toast
   } finally {
     isSubmitting.value = false
   }
@@ -96,6 +152,11 @@ async function handleStartCrawl() {
     crawlUrl.value = ''
     step.value = 'input'
     resetDiscovery()
+  } catch (err) {
+    const mismatch = extractBrandDomainMismatch(err)
+    if (mismatch) {
+      openMismatchModal(mismatch, { type: 'start' })
+    }
   } finally {
     isSubmitting.value = false
   }
@@ -113,6 +174,11 @@ async function handleSkipAndCrawl() {
     crawlUrl.value = ''
     step.value = 'input'
     resetDiscovery()
+  } catch (err) {
+    const mismatch = extractBrandDomainMismatch(err)
+    if (mismatch) {
+      openMismatchModal(mismatch, { type: 'skip' })
+    }
   } finally {
     isSubmitting.value = false
   }
@@ -400,5 +466,54 @@ onMounted(loadHistory)
         </p>
       </div>
     </div>
+
+    <!-- Brand-domain mismatch recovery modal -->
+    <UModal
+      v-model:open="mismatchOpen"
+      title="Domain doesn't match this brand"
+      :dismissible="!isCreatingBrand"
+    >
+      <template #body>
+        <div
+          v-if="mismatchError"
+          class="space-y-4"
+        >
+          <p class="text-sm text-text-base leading-relaxed">
+            {{ mismatchError.message }}
+          </p>
+          <div class="rounded-lg border border-border-subtle bg-surface-2 p-3 text-xs font-mono text-text-muted space-y-1">
+            <div class="flex justify-between gap-4">
+              <span class="text-text-subtle">Selected brand</span>
+              <span class="text-text-base truncate">
+                {{ mismatchError.brand_domains?.length ? mismatchError.brand_domains.join(', ') : mismatchError.brand_domain }}
+              </span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-text-subtle">Crawl URL domain</span>
+              <span class="text-text-base truncate">{{ mismatchError.crawl_domain }}</span>
+            </div>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <UButton
+            label="Cancel"
+            color="neutral"
+            variant="ghost"
+            :disabled="isCreatingBrand"
+            @click="cancelMismatch"
+          />
+          <UButton
+            v-if="mismatchError"
+            :label="`Create brand for ${mismatchError.crawl_domain}`"
+            icon="i-heroicons-plus"
+            color="primary"
+            :loading="isCreatingBrand"
+            @click="confirmCreateBrandAndRetry"
+          />
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
