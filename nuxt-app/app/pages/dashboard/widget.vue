@@ -2,6 +2,7 @@
 definePageMeta({ layout: 'dashboard' })
 useHead({ title: 'Widget Configuration' })
 
+const config = useRuntimeConfig()
 const { merchant, updateConfig } = useMerchantConfig()
 const { copied, copy } = useClipboard()
 
@@ -23,7 +24,7 @@ watch(merchant, (m) => {
 }, { immediate: true })
 
 const snippet = computed(() => {
-  return `<script src="https://cdn.Eoni.ai/widget.js"
+  return `<script src="${config.public.widgetCdnUrl}/widget.js"
   data-key="${widgetKey.value}"
   data-color="${primaryColor.value}"
   data-position="${position.value}"

@@ -63,7 +63,8 @@ Phase 3  — Automation + Scale  ⬜ NOT STARTED
 | Shadow DOM container | — | ⬜ | frontend |
 | SSE chat in widget | — | ⬜ | frontend |
 | Widget config dashboard page (color, message, position) | feat/dashboard-wiring | ✅ wired to real API | frontend |
-| Widget `<script>` tag generation | — | ⬜ | backend |
+| Widget `<script>` tag generation | main | ✅ CDN URL from runtimeConfig.public.widgetCdnUrl | backend |
+| Widget R2 + Worker CDN pipeline | main | ✅ workers/widget-cdn Worker + R2 upload script | backend |
 | GDPR cookie consent in widget | — | ⬜ | security |
 
 ### 1.5 Dashboard Pages
@@ -424,7 +425,7 @@ Branch: `feat/brands-phase-bc` — ✅ typecheck clean, ✅ security review appr
 7. ~~**frontend-developer** -> Wire remaining dashboard pages to real API endpoints (chat, merchant config, analytics)~~ ✅ done — all pages wired, useChat + useMerchantConfig composables, chat.vue page
 8. ~~**backend-developer** -> Brands architecture Phase B+C (per-brand indexes, domains[], reassignment RPC, content-typed extraction)~~ ✅ done on `feat/brands-phase-bc`
 
-**Next priority: TBD.** Phase B+C closes out the brands architecture work. Open candidates from earlier in STATUS.md: Phase 1.4 Widget (Vite build, Shadow DOM, SSE chat, script-tag generation, GDPR cookie consent — all still ⬜); `database.types.ts` regeneration housekeeping (removes `UntypedRpcClient` cast in reassign-brand route); Phase 2 SSG/MCP/llms.txt work. Product-manager to sequence based on user priorities.
+**Widget CDN pipeline complete.** `workers/widget-cdn/` Worker + R2 upload script + `widgetCdnUrl` runtimeConfig done. Deploy: `wrangler deploy` from `workers/widget-cdn/`, set `NUXT_PUBLIC_WIDGET_CDN_URL` in Vercel env vars + local `.env`. Next priority: TBD — Phase B+C closes out the brands architecture work. Open candidates from earlier in STATUS.md: Phase 1.4 Widget (Vite build, Shadow DOM, SSE chat, script-tag generation, GDPR cookie consent — all still ⬜); `database.types.ts` regeneration housekeeping (removes `UntypedRpcClient` cast in reassign-brand route); Phase 2 SSG/MCP/llms.txt work. Product-manager to sequence based on user priorities.
 
 ---
 

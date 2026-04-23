@@ -9,7 +9,10 @@
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
     "typecheck": "nuxt typecheck",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "widget:build": "cd widget && npm install && npm run build",
+    "widget:deploy": "pnpm widget:build && node --env-file=.env scripts/upload-widget.mjs",
+    "widget:dev": "cd widget && npm install && npm run dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.79.0",
@@ -33,6 +36,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1035.0",
     "@axe-core/playwright": "^4.11.1",
     "@iconify-json/heroicons": "^1.2.3",
     "@nuxt/eslint": "^1.15.2",

@@ -48,6 +48,15 @@ async function init(): Promise<void> {
     return self.renderToken(tokens, idx, args[2])
   }
 
+  // Render images with lazy loading and safe inline constraints
+  instance.renderer.rules.image = function (tokens: unknown[], idx: number): string {
+    const tokenArr = tokens as Array<{ attrGet: (name: string) => string | null; content: string }>
+    const token = tokenArr[idx]
+    const src = token?.attrGet('src') ?? ''
+    const alt = token?.content ?? ''
+    return `<img src="${src}" alt="${alt}" loading="lazy" style="max-width:100%;border-radius:6px;margin:4px 0">`
+  }
+
   md = instance
   purify = dompurifyModule.default
 }
@@ -55,12 +64,12 @@ async function init(): Promise<void> {
 const PURIFY_CONFIG: DOMPurifyConfig = {
   ALLOWED_TAGS: [
     'p', 'br', 'strong', 'em', 'b', 'i', 'u', 's', 'del',
-    'a', 'code', 'pre', 'blockquote',
+    'a', 'img', 'code', 'pre', 'blockquote',
     'ul', 'ol', 'li',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'hr', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td'
   ],
-  ALLOWED_ATTR: ['href', 'target', 'rel', 'class']
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'src', 'alt', 'loading', 'width', 'height', 'style']
 }
 
 export function useMarkdown(): { renderMarkdown: (raw: string) => string } {

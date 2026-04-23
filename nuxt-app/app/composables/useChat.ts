@@ -1,4 +1,4 @@
-import type { ChatStreamRequest, ChatChunkEvent, ChatSourcesEvent, ChatDoneEvent, ChatHistoryResponse } from '~/types/api'
+import type { ChatStreamRequest, ChatChunkEvent, ChatSourcesEvent, ChatDoneEvent, ChatHistoryResponse, ChatProduct } from '~/types/api'
 
 interface SavedSession {
   sessionId: string
@@ -18,6 +18,7 @@ export function useChat(options?: { brandId?: Ref<string | null> }) {
 
   const messages = ref<ChatMessage[]>([])
   const sources = ref<ChatSourcesEvent['chunks']>([])
+  const products = ref<ChatProduct[]>([])
   const isStreaming = ref(false)
   const error = ref<string | null>(null)
   const currentSessionId = ref(crypto.randomUUID())
@@ -101,7 +102,9 @@ export function useChat(options?: { brandId?: Ref<string | null> }) {
             const { text: chunk } = JSON.parse(evt.data) as ChatChunkEvent
             messages.value[assistantIdx]!.content += chunk
           } else if (evt.event === 'sources') {
-            sources.value = (JSON.parse(evt.data) as ChatSourcesEvent).chunks
+            const sourcesData = JSON.parse(evt.data) as ChatSourcesEvent
+            sources.value = sourcesData.chunks
+            products.value = sourcesData.products ?? []
           } else if (evt.event === 'done') {
             const { message_id } = JSON.parse(evt.data) as ChatDoneEvent
             messages.value[assistantIdx]!.id = message_id
@@ -144,6 +147,7 @@ export function useChat(options?: { brandId?: Ref<string | null> }) {
     stop()
     messages.value = []
     sources.value = []
+    products.value = []
     error.value = null
     currentSessionId.value = crypto.randomUUID()
   }
@@ -152,5 +156,5 @@ export function useChat(options?: { brandId?: Ref<string | null> }) {
     abortController?.abort()
   })
 
-  return { messages, sources, isStreaming, error, currentSessionId, savedSessions, loadSession, send, stop, reset }
+  return { messages, sources, products, isStreaming, error, currentSessionId, savedSessions, loadSession, send, stop, reset }
 }

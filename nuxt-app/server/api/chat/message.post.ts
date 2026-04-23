@@ -114,7 +114,7 @@ export default defineEventHandler(async (event) => {
       const factPrompt = buildFactBasedPrompt(
         merchantInfo,
         validation.facts,
-        products.map(p => ({ name: p.name, price: p.price, currency: p.currency, source_url: p.source_url })),
+        products.map(p => ({ name: p.name, price: p.price, currency: p.currency, source_url: p.source_url, image_url: p.image_url ?? null })),
         history,
         body.message,
         brandContext,

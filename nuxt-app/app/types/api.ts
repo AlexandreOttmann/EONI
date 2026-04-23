@@ -271,6 +271,19 @@ export interface ChatChunkEvent {
   text: string
 }
 
+export interface ChatProduct {
+  id: string
+  name: string
+  description: string | null
+  price: number | null
+  currency: string
+  availability: string
+  category: string | null
+  source_url: string
+  image_url: string | null
+  similarity: number
+}
+
 export interface ChatSourcesEvent {
   chunks: Array<{
     id: string
@@ -278,6 +291,7 @@ export interface ChatSourcesEvent {
     metadata?: ChunkMetadata
     similarity: number
   }>
+  products?: ChatProduct[]
   records?: Array<{ object_id: string, index_name: string, fields: Record<string, unknown>, similarity: number }>
 }
 

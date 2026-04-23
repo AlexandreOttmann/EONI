@@ -89,7 +89,7 @@ ${brandContext ? `\n[BRAND VOICE & IDENTITY]\nAdopt the following brand identity
 export function buildFactBasedPrompt(
   merchant: MerchantInfo,
   facts: Array<{ text: string, source: string | null }>,
-  products: Array<{ name: string, price: number | null, currency: string, source_url: string }>,
+  products: Array<{ name: string, price: number | null, currency: string, source_url: string, image_url?: string | null }>,
   history: HistoryMessage[],
   userMessage: string,
   brandContext?: string | null,
@@ -100,7 +100,8 @@ export function buildFactBasedPrompt(
   if (products.length > 0) {
     productsSection = '\nProducts:\n' + products.map((p) => {
       const priceStr = p.price !== null ? `${p.price} ${p.currency}` : 'not listed'
-      return `[Product: ${p.name} | Price: ${priceStr} | Source: ${p.source_url}]`
+      const imageStr = p.image_url ? ` | Image: ${p.image_url}` : ''
+      return `[Product: ${p.name} | Price: ${priceStr} | Source: ${p.source_url}${imageStr}]`
     }).join('\n')
   }
 
@@ -125,6 +126,7 @@ STRICT RULES:
 - Always cite source URLs when referencing products or information
 - If specific information is unavailable, acknowledge it naturally in 1 sentence, then suggest 1–2 related products or topics if available — never list missing info as bullet points
 - Keep responses concise and conversational — avoid academic or disclaimer-heavy phrasing
+- Images ARE supported: when a product has an Image URL and the user asks to see it, output it using markdown syntax: ![Product name](image_url)
 
 Merchant: ${merchant.name}
 Website: ${merchant.domain ?? 'not specified'}

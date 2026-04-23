@@ -3,7 +3,7 @@ definePageMeta({ layout: 'dashboard' })
 useHead({ title: 'Chat Preview' })
 
 const { activeBrandId } = useActiveBrand()
-const { messages, sources, isStreaming, error, currentSessionId, savedSessions, loadSession, send, stop, reset } = useChat({ brandId: activeBrandId })
+const { messages, sources, products, isStreaming, error, currentSessionId, savedSessions, loadSession, send, stop, reset } = useChat({ brandId: activeBrandId })
 const { renderMarkdown } = useMarkdown()
 
 const input = ref('')
@@ -181,7 +181,7 @@ watch(
 
         <!-- Sources toggle -->
         <div
-          v-if="sources.length > 0"
+          v-if="sources.length > 0 || products.length > 0"
           class="mt-2 flex justify-end"
         >
           <UButton
@@ -229,7 +229,7 @@ watch(
 
       <!-- Sources sidebar -->
       <div
-        v-if="showSources && sources.length > 0"
+        v-if="showSources && (sources.length > 0 || products.length > 0)"
         class="w-72 shrink-0 hidden lg:block"
       >
         <UCard class="h-full overflow-y-auto">
@@ -239,18 +239,61 @@ watch(
             </h2>
           </template>
           <div class="space-y-3">
-            <div
-              v-for="source in sources"
-              :key="source.id"
-              class="p-2 rounded-lg bg-surface-2 text-xs"
-            >
-              <p class="text-text-base line-clamp-4">
-                {{ source.content }}
-              </p>
-              <div class="mt-1 flex items-center gap-2 text-text-muted">
-                <span class="tabular-nums">{{ Math.round(source.similarity * 100) }}% match</span>
+            <!-- Product cards -->
+            <template v-if="products.length > 0">
+              <a
+                v-for="product in products"
+                :key="product.id"
+                :href="product.source_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="block rounded-lg bg-surface-2 overflow-hidden hover:ring-1 hover:ring-accent-violet/40 transition-shadow text-xs"
+              >
+                <img
+                  v-if="product.image_url"
+                  :src="product.image_url"
+                  :alt="product.name"
+                  class="w-full h-32 object-cover"
+                  loading="lazy"
+                >
+                <div class="p-2 space-y-0.5">
+                  <p class="font-medium text-text-base line-clamp-2 leading-snug">
+                    {{ product.name }}
+                  </p>
+                  <p
+                    v-if="product.price != null"
+                    class="tabular-nums text-accent-violet font-semibold"
+                  >
+                    {{ product.currency }} {{ product.price.toLocaleString() }}
+                  </p>
+                  <p
+                    v-if="product.category"
+                    class="text-text-muted"
+                  >
+                    {{ product.category }}
+                  </p>
+                  <p class="text-text-muted opacity-70 tabular-nums">
+                    {{ Math.round(product.similarity * 100) }}% match
+                  </p>
+                </div>
+              </a>
+            </template>
+
+            <!-- Raw chunk sources (shown when no products, or as supplement) -->
+            <template v-if="sources.length > 0 && products.length === 0">
+              <div
+                v-for="source in sources"
+                :key="source.id"
+                class="p-2 rounded-lg bg-surface-2 text-xs"
+              >
+                <p class="text-text-base line-clamp-4">
+                  {{ source.content }}
+                </p>
+                <div class="mt-1 flex items-center gap-2 text-text-muted">
+                  <span class="tabular-nums">{{ Math.round(source.similarity * 100) }}% match</span>
+                </div>
               </div>
-            </div>
+            </template>
           </div>
         </UCard>
       </div>

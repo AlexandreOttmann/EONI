@@ -1,0 +1,7 @@
+name = "eoni-widget-cdn"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[[r2_buckets]]
+binding = "WIDGET_BUCKET"
+bucket_name = "ecommerce-ai-content"
