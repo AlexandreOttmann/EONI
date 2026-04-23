@@ -2,9 +2,9 @@
 definePageMeta({ layout: 'marketing' })
 
 useSeoMeta({
-  title: 'Synth — Turn any website into an AI-powered storefront',
+  title: 'Eoni — Turn any website into an AI-powered storefront',
   description: 'Paste your URL. Our AI crawls your catalog, builds a smart chat widget, and makes your products discoverable by ChatGPT, Perplexity, and Claude.',
-  ogTitle: 'Synth — AI-powered storefronts for every merchant',
+  ogTitle: 'Eoni — AI-powered storefronts for every merchant',
   ogDescription: 'Turn any website into an AI-discoverable storefront.',
   twitterCard: 'summary_large_image'
 })

@@ -7,7 +7,9 @@ import { z } from 'zod'
 const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(24),
-  search: z.string().optional()
+  search: z.string().optional(),
+  brand_id: z.string().uuid().optional(),
+  category: z.string().max(200).optional()
 })
 
 export default defineEventHandler(async (event) => {
@@ -33,6 +35,14 @@ export default defineEventHandler(async (event) => {
 
   if (query.search) {
     q = q.ilike('searchable_text', `%${query.search}%`)
+  }
+
+  if (query.brand_id) {
+    q = q.eq('brand_id', query.brand_id)
+  }
+
+  if (query.category) {
+    q = q.eq('fields->>category', query.category)
   }
 
   const { data, count, error } = await q

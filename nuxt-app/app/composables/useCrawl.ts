@@ -1,4 +1,4 @@
-import type { StartCrawlResponse, CrawlStatusResponse, CrawlJobsResponse, DiscoverResponse, SitemapGroup } from '~/types/api'
+import type { StartCrawlResponse, CrawlStatusResponse, CrawlJobsResponse, DiscoverResponse, SitemapGroup, BrandDomainMismatchError } from '~/types/api'
 
 export function useCrawl() {
   const toast = useToast()
@@ -64,7 +64,7 @@ export function useCrawl() {
     }
   }
 
-  async function discoverSite(url: string) {
+  async function discoverSite(url: string, options?: { brandId?: string }) {
     isDiscovering.value = true
     discoveryError.value = null
     sitemapGroups.value = []
@@ -75,7 +75,7 @@ export function useCrawl() {
     try {
       const result = await $fetch<DiscoverResponse>('/api/crawl/discover', {
         method: 'POST',
-        body: { url }
+        body: { url, brand_id: options?.brandId }
       })
 
       sitemapFound.value = result.sitemap_found
@@ -85,6 +85,12 @@ export function useCrawl() {
 
       return result
     } catch (err: unknown) {
+      // Preserve structured backend error data so callers can react to
+      // `brand_domain_mismatch` before falling back to a generic toast.
+      const data = (err as { data?: { code?: string } }).data
+      if (data?.code === 'brand_domain_mismatch') {
+        throw err
+      }
       discoveryError.value = 'Failed to analyze site structure.'
       toast.add({ title: 'Discovery failed', description: 'Could not fetch sitemap. You can still start a crawl.', color: 'warning' })
       throw err
@@ -106,9 +112,9 @@ export function useCrawl() {
     includePatterns?: string[]
     excludePatterns?: string[]
     brandId?: string
-  }) {
+  }): Promise<StartCrawlResponse> {
     try {
-      const { job_id } = await $fetch<StartCrawlResponse>('/api/crawl/start', {
+      const response = await $fetch<StartCrawlResponse>('/api/crawl/start', {
         method: 'POST',
         body: {
           url,
@@ -118,8 +124,22 @@ export function useCrawl() {
           brand_id: options?.brandId
         }
       })
-      startPolling(job_id)
+      startPolling(response.job_id)
+      if (response.brand_domain_claimed) {
+        toast.add({
+          title: 'Brand domain set',
+          description: `Brand domain set to ${response.brand_domain_claimed}`,
+          color: 'success'
+        })
+      }
+      return response
     } catch (err: unknown) {
+      // Surface structured `brand_domain_mismatch` so the page can open a
+      // recovery modal instead of showing a generic toast.
+      const data = (err as { data?: { code?: string } }).data
+      if (data?.code === 'brand_domain_mismatch') {
+        throw err
+      }
       const status = (err as { statusCode?: number }).statusCode
       const message = status === 409
         ? 'A crawl is already in progress.'
@@ -127,6 +147,12 @@ export function useCrawl() {
       toast.add({ title: 'Error', description: message, color: 'error' })
       throw err
     }
+  }
+
+  function extractBrandDomainMismatch(err: unknown): BrandDomainMismatchError | null {
+    const data = (err as { data?: BrandDomainMismatchError }).data
+    if (data?.code === 'brand_domain_mismatch') return data
+    return null
   }
 
   onUnmounted(stopPolling)
@@ -145,6 +171,7 @@ export function useCrawl() {
     isDiscovering,
     discoveryError,
     discoverSite,
-    resetDiscovery
+    resetDiscovery,
+    extractBrandDomainMismatch
   }
 }

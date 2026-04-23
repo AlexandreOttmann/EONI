@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { consola } from 'consola'
 import { resolveMerchant, rateLimitByKey, buildChatContext } from '../../utils/chat'
 import { validateAndExtract } from '../../utils/rag-validator'
-import { buildFactBasedPrompt, buildPrompt } from '../../utils/prompt'
+import { buildFactBasedPrompt, buildPrompt, buildAggregationPrompt } from '../../utils/prompt'
 
 // ─── Singleton Anthropic client (R11) ────────────────────────
 let _anthropic: Anthropic | null = null
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
   const merchantInfo = { name: merchant.name, domain: merchant.domain }
 
   // 1. Get context (intent-based retrieval + R7 cache + R5 reranking)
-  const { conversationId, products, chunks, records, history, brandContext, queryIntent, allHighConfidence } = await buildChatContext(
+  const { conversationId, products, chunks, records, aggregationRecords, history, brandContext, queryIntent, allHighConfidence } = await buildChatContext(
     client,
     merchantId,
     merchantInfo,
@@ -98,11 +98,18 @@ export default defineEventHandler(async (event) => {
     }
     confidenceScore = 0
   } else {
-    // Answerable — fact-based prompt via Sonnet
+    // Answerable — select prompt builder based on intent
     let system: string
     let messages: Anthropic.MessageParam[]
+    let maxTokens = 1024
 
-    if (products.length > 0) {
+    if (queryIntent === 'aggregation') {
+      // Full-catalog aggregation — bypassed vector search, all records available
+      const aggPrompt = buildAggregationPrompt(merchantInfo, aggregationRecords, history, body.message, brandContext)
+      system = aggPrompt.system
+      messages = aggPrompt.messages
+      maxTokens = 2048
+    } else if (products.length > 0) {
       // Products found — use fact-based prompt
       const factPrompt = buildFactBasedPrompt(
         merchantInfo,
@@ -125,7 +132,7 @@ export default defineEventHandler(async (event) => {
     const anthropic = getAnthropicClient(config.anthropicApiKey as string)
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system,
       messages
     })

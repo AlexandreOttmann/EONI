@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { consola } from 'consola'
 import { embedTexts } from './embedder'
-import { classifyIntent, type QueryIntent } from './query-router'
+import { routeQuery, type QueryIntent } from './query-router'
 import { rerankResults } from './reranker'
 
 // ─── Per-intent similarity thresholds ───────────────────────
@@ -204,15 +204,43 @@ export async function buildChatContext(
   const history = (historyRows ?? []).reverse() as HistoryMessage[]
   consola.debug({ tag: 'chat-history', count: history.length, conversationId })
 
-  // Run intent classification + embedding in parallel
-  const [intentResult, embedResults] = await Promise.all([
-    classifyIntent(message, openaiApiKey, _merchantInfo.name),
+  // Run query routing (intent + targetIndex) + embedding in parallel
+  const [routerResult, embedResults] = await Promise.all([
+    routeQuery(message, openaiApiKey, _merchantInfo.name),
     embedTexts([message], openaiApiKey)
   ])
 
-  const queryIntent = intentResult
+  const { intent: queryIntent } = routerResult
+  let targetIndex: string | null = routerResult.targetIndex
   const queryEmbedding = embedResults[0]
   if (!queryEmbedding) throw new Error('Failed to generate query embedding')
+
+  // Fallback: if the router picked a specific index but no registration exists
+  // for this (merchant, brand, index) triple, drop back to null so search
+  // sees every index. Prevents empty-result dead-ends when e.g. the router
+  // routes "what's your return policy" to `support` but the merchant hasn't
+  // crawled any support pages yet.
+  let targetIndexFallback = false
+  if (targetIndex !== null) {
+    const { data: indexRow } = await supabase
+      .from('indexes')
+      .select('name')
+      .eq('merchant_id', merchantId)
+      .eq('brand_id', brandId ?? null)
+      .eq('name', targetIndex)
+      .limit(1)
+      .maybeSingle()
+    if (!indexRow) {
+      targetIndexFallback = true
+      targetIndex = null
+    }
+  }
+  consola.debug({
+    tag: 'query-route',
+    intent: queryIntent,
+    targetIndex,
+    fallback: targetIndexFallback,
+  })
 
   // Fetch brand description if brandId is set
   let brandContext: string | null = null
@@ -234,7 +262,7 @@ export async function buildChatContext(
   if (queryIntent === 'aggregation') {
     const { data: aggData, error: aggError } = await supabase.rpc('list_records_for_aggregation', {
       p_merchant_id: merchantId,
-      p_index_name: 'products',
+      p_index_name: targetIndex,
       p_brand_id: brandId ?? null,
       p_limit: 150,
     })
@@ -348,6 +376,7 @@ export async function buildChatContext(
       query_text: message,
       match_count: 8,
       p_merchant_id: merchantId,
+      p_index_name: targetIndex,
       p_brand_id: brandId ?? null,
     })
     if (error) consola.error({ tag: 'match_records_hybrid', error: error.message, code: error.code, merchantId })

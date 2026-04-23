@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import type { BrandWithCounts } from '~/types/api'
-
 definePageMeta({ layout: 'dashboard' })
 useHead({ title: 'Brands' })
 
-const { brands, isLoading, createBrand, updateBrand, deleteBrand } = useBrands()
+const { brands, isLoading, createBrand } = useBrands()
 
 // Create modal
 const showCreateModal = ref(false)
@@ -28,54 +26,6 @@ async function handleCreate() {
   } finally {
     isCreating.value = false
   }
-}
-
-// Edit modal
-const showEditModal = ref(false)
-const editBrand = ref<BrandWithCounts | null>(null)
-const editName = ref('')
-const editDomain = ref('')
-const editDescription = ref('')
-const editLogoUrl = ref('')
-const isSaving = ref(false)
-
-function openEdit(brand: BrandWithCounts) {
-  editBrand.value = brand
-  editName.value = brand.name
-  editDomain.value = brand.domain ?? ''
-  editDescription.value = brand.description ?? ''
-  editLogoUrl.value = brand.logo_url ?? ''
-  showEditModal.value = true
-}
-
-async function handleSave() {
-  if (!editBrand.value || !editName.value.trim()) return
-  isSaving.value = true
-  try {
-    await updateBrand(editBrand.value.id, {
-      name: editName.value.trim(),
-      domain: editDomain.value.trim() || undefined,
-      description: editDescription.value.trim() || undefined,
-      logo_url: editLogoUrl.value.trim() || undefined
-    })
-    showEditModal.value = false
-  } catch {
-    // handled by composable
-  } finally {
-    isSaving.value = false
-  }
-}
-
-function useExtractedDescription() {
-  if (editBrand.value?.extracted_description) {
-    editDescription.value = editBrand.value.extracted_description
-  }
-}
-
-async function handleDelete() {
-  if (!editBrand.value) return
-  await deleteBrand(editBrand.value.id)
-  showEditModal.value = false
 }
 </script>
 
@@ -146,7 +96,12 @@ async function handleDelete() {
         >
           <UCard
             class="cursor-pointer transition-shadow duration-300 hover:glow-violet"
-            @click="openEdit(brand)"
+            role="button"
+            tabindex="0"
+            :aria-label="`Open ${brand.name}`"
+            @click="navigateTo(`/dashboard/brands/${brand.id}`)"
+            @keydown.enter.prevent="navigateTo(`/dashboard/brands/${brand.id}`)"
+            @keydown.space.prevent="navigateTo(`/dashboard/brands/${brand.id}`)"
           >
             <div class="flex items-start gap-3">
               <div
@@ -160,7 +115,7 @@ async function handleDelete() {
                   height="40"
                   class="w-full h-full object-cover"
                   loading="lazy"
-                />
+                >
               </div>
               <div
                 v-else
@@ -176,10 +131,10 @@ async function handleDelete() {
                   {{ brand.name }}
                 </h3>
                 <p
-                  v-if="brand.domain"
+                  v-if="brand.domains && brand.domains.length > 0"
                   class="text-xs text-text-muted font-mono truncate"
                 >
-                  {{ brand.domain }}
+                  {{ brand.domains.join(', ') }}
                 </p>
                 <p
                   v-if="brand.description"
@@ -280,6 +235,9 @@ async function handleDelete() {
               placeholder="mybrand.com"
               size="md"
             />
+            <p class="text-xs text-text-muted mt-1">
+              We'll use this to verify your crawl URLs match this brand.
+            </p>
           </div>
           <div class="flex justify-end gap-2">
             <UButton
@@ -297,122 +255,6 @@ async function handleDelete() {
               :loading="isCreating"
               :disabled="!createName.trim()"
             />
-          </div>
-        </form>
-      </template>
-    </UModal>
-
-    <!-- Edit modal -->
-    <UModal
-      v-model:open="showEditModal"
-      title="Edit Brand"
-    >
-      <template #body>
-        <form
-          class="space-y-4"
-          @submit.prevent="handleSave"
-        >
-          <div>
-            <label
-              for="edit-name"
-              class="text-sm font-medium text-text-base mb-1 block"
-            >
-              Brand name
-            </label>
-            <UInput
-              id="edit-name"
-              v-model="editName"
-              size="md"
-            />
-          </div>
-          <div>
-            <label
-              for="edit-domain"
-              class="text-sm font-medium text-text-base mb-1 block"
-            >
-              Domain
-            </label>
-            <UInput
-              id="edit-domain"
-              v-model="editDomain"
-              placeholder="mybrand.com"
-              size="md"
-            />
-          </div>
-          <div>
-            <label
-              for="edit-description"
-              class="text-sm font-medium text-text-base mb-1 block"
-            >
-              Description
-            </label>
-            <UTextarea
-              id="edit-description"
-              v-model="editDescription"
-              placeholder="Describe this brand for the AI assistant…"
-              :rows="3"
-              size="md"
-            />
-            <div
-              v-if="editBrand?.extracted_description && editBrand.extracted_description !== editDescription"
-              class="mt-2 p-2 rounded-lg bg-accent-violet/5 border border-accent-violet/20"
-            >
-              <p class="text-xs text-text-muted mb-1">
-                AI suggestion:
-              </p>
-              <p class="text-xs text-text-base line-clamp-3">
-                {{ editBrand.extracted_description }}
-              </p>
-              <UButton
-                label="Use this"
-                variant="ghost"
-                color="primary"
-                size="xs"
-                class="mt-1"
-                @click="useExtractedDescription"
-              />
-            </div>
-          </div>
-          <div>
-            <label
-              for="edit-logo"
-              class="text-sm font-medium text-text-base mb-1 block"
-            >
-              Logo URL
-            </label>
-            <UInput
-              id="edit-logo"
-              v-model="editLogoUrl"
-              placeholder="https://…"
-              size="md"
-            />
-          </div>
-          <div class="flex justify-between">
-            <UButton
-              label="Delete"
-              variant="ghost"
-              color="error"
-              size="sm"
-              icon="i-heroicons-trash"
-              @click="handleDelete"
-            />
-            <div class="flex gap-2">
-              <UButton
-                label="Cancel"
-                variant="outline"
-                color="neutral"
-                size="sm"
-                @click="showEditModal = false"
-              />
-              <UButton
-                type="submit"
-                label="Save"
-                color="primary"
-                size="sm"
-                :loading="isSaving"
-                :disabled="!editName.trim()"
-              />
-            </div>
           </div>
         </form>
       </template>

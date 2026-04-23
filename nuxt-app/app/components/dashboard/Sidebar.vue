@@ -5,8 +5,6 @@ const navItems = [
   { label: 'Overview', icon: 'i-heroicons-squares-2x2', to: '/dashboard' },
   { label: 'Crawl', icon: 'i-heroicons-arrow-path', to: '/dashboard/crawl' },
   { label: 'Brands', icon: 'i-heroicons-building-storefront', to: '/dashboard/brands' },
-  { label: 'Indexes', icon: 'i-heroicons-circle-stack', to: '/dashboard/indexes' },
-  { label: 'Products', icon: 'i-heroicons-shopping-bag', to: '/dashboard/products' },
   { label: 'Chat Preview', icon: 'i-heroicons-chat-bubble-left-ellipsis', to: '/dashboard/chat' },
   { label: 'Widget', icon: 'i-heroicons-code-bracket', to: '/dashboard/widget' },
   { label: 'API', icon: 'i-heroicons-command-line', to: '/dashboard/api' },

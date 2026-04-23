@@ -3,10 +3,11 @@ import { z } from 'zod'
 import { serverSupabaseUser, serverSupabaseServiceRole } from '#supabase/server'
 import type { StartCrawlResponse } from '~/types/api'
 import { resumeFromCfJob } from '../../utils/crawl-worker'
+import { extractRootDomain, titleCaseFromDomain, InvalidUrlError } from '../../utils/domain'
 import { EXTRACTION_PROMPT, EXTRACTION_SCHEMA } from '../../utils/extraction-prompts'
 
 const bodySchema = z.object({
-  url: z.string().url(),
+  url: z.string().url().refine(u => /^https?:\/\//i.test(u), 'URL must use http or https'),
   limit: z.number().int().min(1).max(500).optional().default(100),
   includePatterns: z.array(z.string()).max(20).optional(),
   excludePatterns: z.array(z.string()).max(20).optional(),
@@ -136,16 +137,61 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
 
   if (running) throw createError({ statusCode: 409, message: 'A crawl is already in progress' })
 
-  // Verify brand ownership if brand_id provided
+  // Verify brand ownership + enforce brand-domain membership.
+  // A brand may own multiple domains (domains text[] since migration 0039).
+  // Skip the guard entirely when no brand_id is provided (nullable brands
+  // are still allowed per existing behavior).
+  let brandDomainClaimed: string | undefined
   if (body.brand_id) {
     const { data: brand } = await client
       .from('brands')
-      .select('id')
+      .select('id, name, domains')
       .eq('id', body.brand_id)
-      .eq('merchant_id', user.sub)
+      .eq('merchant_id', user.sub) // multi-tenancy filter — do not remove
       .maybeSingle()
 
     if (!brand) throw createError({ statusCode: 404, message: 'Brand not found' })
+
+    let crawlDomain: string
+    try {
+      crawlDomain = extractRootDomain(body.url)
+    } catch (err) {
+      if (err instanceof InvalidUrlError) {
+        throw createError({ statusCode: 400, message: 'Invalid URL' })
+      }
+      throw err
+    }
+
+    const brandDomains: string[] = Array.isArray(brand.domains) ? brand.domains : []
+
+    if (brandDomains.length === 0) {
+      // First-crawl auto-claim: bind this brand to the URL's root domain.
+      const { error: claimError } = await client
+        .from('brands')
+        .update({ domains: [crawlDomain], updated_at: new Date().toISOString() })
+        .eq('id', body.brand_id)
+        .eq('merchant_id', user.sub)
+
+      if (claimError) {
+        throw createError({ statusCode: 500, message: 'Failed to claim brand domain' })
+      }
+      brandDomainClaimed = crawlDomain
+    } else if (!brandDomains.includes(crawlDomain)) {
+      // Preserve the exact error shape the frontend depends on: surface the
+      // primary domain (domains[0]) as `brand_domain` for the legacy field.
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'brand_domain_mismatch',
+        data: {
+          code: 'brand_domain_mismatch',
+          brand_id: body.brand_id,
+          brand_domain: brandDomains[0] ?? '',
+          crawl_domain: crawlDomain,
+          message: `This URL belongs to ${crawlDomain} but the selected brand "${brand.name}" is bound to ${brandDomains.join(', ')}. Create a new brand for ${crawlDomain}, or switch the active brand.`,
+          suggested_brand_name: titleCaseFromDomain(crawlDomain)
+        }
+      })
+    }
   }
 
   // Get merchant name
@@ -192,5 +238,9 @@ export default defineEventHandler(async (event): Promise<StartCrawlResponse> => 
     }
   ).catch(() => { /* errors handled inside processJob */ })
 
-  return { job_id: job.id, status: 'pending' }
+  return {
+    job_id: job.id,
+    status: 'pending',
+    ...(brandDomainClaimed ? { brand_domain_claimed: brandDomainClaimed } : {})
+  }
 })

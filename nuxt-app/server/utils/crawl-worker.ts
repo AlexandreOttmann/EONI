@@ -1,11 +1,23 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { consola } from 'consola'
+import OpenAI from 'openai'
 import type { Database, Json } from '~/types/database.types'
 import { chunkMarkdown } from './chunker'
 import { classifyPages, type ContentType } from './content-classifier'
 import { extractBrandDescription } from './brand-extractor'
 import { embedTexts } from './embedder'
 import { processRecords } from './record-processor'
+import { extractRecordsForPage, type ExtractedItem } from './extraction-prompts'
+
+// Maps content-classifier output to the target records index name. `null`
+// means "this page type produces no records" — chunks still land normally.
+const CONTENT_TYPE_TO_INDEX: Record<ContentType, string | null> = {
+  product: 'products',
+  faq:     'faq',
+  support: 'support',
+  brand:   null,
+  other:   null
+}
 
 export type WorkerConfig = {
   jobId: string
@@ -340,6 +352,28 @@ async function processBatch(
   }
   consola.debug(`[crawl-worker] Batch page types: ${JSON.stringify(typeCounts)}`)
 
+  // Ensure an indexes row exists for every (merchantId, brandId, target) we
+  // are about to write records into. Single upsert per unique target per
+  // batch — cheap.
+  const targetIndexes = new Set<string>()
+  for (const t of pageTypes) {
+    const name = CONTENT_TYPE_TO_INDEX[t]
+    if (name) targetIndexes.add(name)
+  }
+  if (targetIndexes.size > 0) {
+    await client.from('indexes').upsert(
+      Array.from(targetIndexes).map(name => ({
+        merchant_id: config.merchantId,
+        brand_id: config.brandId ?? null,
+        name
+      })),
+      { onConflict: 'merchant_id,brand_id,name', ignoreDuplicates: true }
+    )
+  }
+
+  // Shared OpenAI client for FAQ/support extraction within this batch.
+  const openai = new OpenAI({ apiKey: config.openaiApiKey })
+
   // ── Phase 2: Collect chunks + records (parallel, no embedding) ───
   const CONCURRENCY = 10
   let batchPagesProcessed = 0
@@ -386,40 +420,104 @@ async function processBatch(
       })
     }
 
-    const validItems = (page.items ?? []).filter(
-      item => typeof item.name === 'string' && item.name.trim().length > 0
+    const indexName = CONTENT_TYPE_TO_INDEX[pageType]
+    if (!indexName) {
+      consola.info(`[crawl-worker] Processed ${page.url} type=${pageType} chunks=${rawChunks.length} records=0 index=none`)
+      return
+    }
+
+    // Dispatch to the right extractor per pageType. For `product`, the
+    // dispatcher passes through page.items that Cloudflare already extracted.
+    // For `faq`/`support`, it makes a GPT-4o-mini call. For `brand`/`other`,
+    // it returns [] — but those are already handled above via the null guard.
+    const extractedItems: ExtractedItem[] = await extractRecordsForPage(
+      {
+        url: page.url,
+        title: page.title,
+        markdown: page.text,
+        items: page.items,
+        pageSummary: page.pageSummary
+      },
+      pageType,
+      openai
     )
 
-    consola.info(`[crawl-worker] Processed ${page.url} type=${pageType} chunks=${rawChunks.length} products=${validItems.length}`)
+    const pageContext = page.pageSummary || (page.text.length > 0 ? page.text.slice(0, 500) : null)
+    let recordsForPage = 0
 
-    if (validItems.length > 0) {
-      const pageContext = page.pageSummary || (page.text.length > 0 ? page.text.slice(0, 500) : null)
+    for (const [index, item] of extractedItems.entries()) {
+      if (item.__kind === 'product') {
+        const raw = item as Record<string, unknown>
+        // Preserve existing product validity rule: name required.
+        if (typeof raw.name !== 'string' || raw.name.trim().length === 0) continue
 
-      for (const [index, item] of validItems.entries()) {
+        const productFields: Record<string, unknown> = {
+          name: raw.name as string,
+          description: typeof raw.description === 'string' ? raw.description : null,
+          page_context: pageContext,
+          price: typeof raw.price === 'number' ? raw.price : null,
+          currency: typeof raw.currency === 'string' ? raw.currency : 'EUR',
+          availability: typeof raw.availability === 'string' ? raw.availability : 'unknown',
+          sku: typeof raw.sku === 'string' ? raw.sku : null,
+          category: typeof raw.category === 'string' ? raw.category : null,
+          image_url: typeof raw.image_url === 'string' ? raw.image_url : null,
+          source_url: page.url,
+          extraction_confidence: determineExtractionConfidence(raw),
+          missing_fields: getMissingFields(raw),
+          crawl_job_id: config.jobId,
+          page_id: pageRow.id
+        }
+
         allRecordInputs.push({
-          objectId: page.url + '#' + (typeof item.sku === 'string' ? item.sku : typeof item.name === 'string' ? item.name : String(index)),
-          indexName: 'products' as const,
-          fields: {
-            name: item.name as string,
-            description: typeof item.description === 'string' ? item.description : null,
-            page_context: pageContext,
-            price: typeof item.price === 'number' ? item.price : null,
-            currency: typeof item.currency === 'string' ? item.currency : 'EUR',
-            availability: typeof item.availability === 'string' ? item.availability : 'unknown',
-            sku: typeof item.sku === 'string' ? item.sku : null,
-            category: typeof item.category === 'string' ? item.category : null,
-            image_url: typeof item.image_url === 'string' ? item.image_url : null,
-            source_url: page.url,
-            extraction_confidence: determineExtractionConfidence(item),
-            missing_fields: getMissingFields(item),
-            crawl_job_id: config.jobId,
-            page_id: pageRow.id
-          },
+          objectId: page.url + '#' + (typeof raw.sku === 'string' ? raw.sku : typeof raw.name === 'string' ? raw.name : String(index)),
+          indexName,
+          fields: productFields,
           merchantId: config.merchantId,
           brandId: config.brandId ?? undefined
         })
+        recordsForPage++
+      } else if (item.__kind === 'faq') {
+        const faqFields: Record<string, unknown> = {
+          question: item.question,
+          answer: item.answer,
+          topic: item.topic ?? null,
+          page_context: pageContext,
+          source_url: page.url,
+          crawl_job_id: config.jobId,
+          page_id: pageRow.id
+        }
+
+        allRecordInputs.push({
+          objectId: page.url + '#' + (item.question || String(index)),
+          indexName,
+          fields: faqFields,
+          merchantId: config.merchantId,
+          brandId: config.brandId ?? undefined
+        })
+        recordsForPage++
+      } else if (item.__kind === 'support') {
+        const supportFields: Record<string, unknown> = {
+          topic: item.topic,
+          body: item.body,
+          policy_type: item.policy_type,
+          page_context: pageContext,
+          source_url: page.url,
+          crawl_job_id: config.jobId,
+          page_id: pageRow.id
+        }
+
+        allRecordInputs.push({
+          objectId: page.url + '#' + (item.topic || String(index)),
+          indexName,
+          fields: supportFields,
+          merchantId: config.merchantId,
+          brandId: config.brandId ?? undefined
+        })
+        recordsForPage++
       }
     }
+
+    consola.info(`[crawl-worker] Processed ${page.url} type=${pageType} chunks=${rawChunks.length} records=${recordsForPage} index=${indexName}`)
   }
 
   for (let i = 0; i < pages.length; i += CONCURRENCY) {
@@ -454,13 +552,17 @@ async function processBatch(
     consola.info(`[crawl-worker] Inserted ${chunksCreated} chunks`)
   }
 
-  // ── Phase 5: Process product records ─────────────────────────
+  // ── Phase 5: Process records (all indexes) ───────────────────
   let productsExtracted = 0
   if (allRecordInputs.length > 0) {
-    consola.info(`[crawl-worker] Processing ${allRecordInputs.length} product records...`)
+    const indexCounts: Record<string, number> = {}
+    for (const r of allRecordInputs) {
+      indexCounts[r.indexName] = (indexCounts[r.indexName] ?? 0) + 1
+    }
+    consola.info(`[crawl-worker] Processing ${allRecordInputs.length} records ${JSON.stringify(indexCounts)}...`)
     await processRecords(allRecordInputs, client, config.openaiApiKey)
     productsExtracted = allRecordInputs.length
-    consola.info(`[crawl-worker] Processed ${productsExtracted} product records`)
+    consola.info(`[crawl-worker] Processed ${productsExtracted} records`)
   }
 
   return { pagesProcessed: batchPagesProcessed, chunksCreated, productsExtracted }
