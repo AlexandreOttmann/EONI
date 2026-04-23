@@ -5,8 +5,7 @@ import { WidgetHost } from './widget'
 const _scriptEl = document.currentScript as HTMLScriptElement | null
 
 ;(function init() {
-  const src = _scriptEl?.src ?? ''
-  const apiBase = src ? new URL(src).origin : window.location.origin
+  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'https://eoni.vercel.app'
 
   const widgetKey = _scriptEl?.dataset['key'] ?? ''
   const color = _scriptEl?.dataset['color'] ?? '#7c3aed'

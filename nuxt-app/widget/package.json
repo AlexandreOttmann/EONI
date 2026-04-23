@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite build --watch"
+    "dev": "VITE_API_BASE=http://localhost:3000 vite build --watch"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

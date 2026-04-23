@@ -26,7 +26,16 @@ export default defineNuxtConfig({
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
     public: {
       environment: 'development',
-      widgetCdnUrl: process.env.NUXT_PUBLIC_WIDGET_CDN_URL ?? '',
+      widgetCdnUrl: process.env.NUXT_PUBLIC_WIDGET_CDN_URL ?? ''
+    }
+  },
+  routeRules: {
+    '/api/chat/**': {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
     }
   },
 
@@ -58,15 +67,6 @@ export default defineNuxtConfig({
         braceStyle: '1tbs'
       }
     }
-  },
-  routeRules: {
-    '/api/chat/**': {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-    },
   },
 
   supabase: {
